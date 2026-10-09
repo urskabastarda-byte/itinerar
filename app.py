@@ -76,6 +76,9 @@ AIRPORTS = {
     "GRU": ("São Paulo", "America/Sao_Paulo"),
     "CPT": ("Cape Town", "Africa/Johannesburg"),
     "JNB": ("Johannesburg", "Africa/Johannesburg"),
+    "MEX": ("Mexico City", "America/Mexico City"),
+    "GDL": ("Guadalajara", "America/Guadalajara"),
+    "ATL": ("Atlanta", "America/Atlanta")
 }
 
 

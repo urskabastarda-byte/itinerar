@@ -184,81 +184,62 @@ def time_difference_minutes(
 
 # ---------------------------------------------------------
 # PREPOZNAVANJE AMADEUS SEGMENTOV
-# ---------------------------------------------------------
+# --------------------------------------------------------
 
 def extract_segment(line):
-    """
-    Podprti obliki:
+    """Prebere en Amadeusov segment iz več pogostih zapisov."""
+    line = line.strip().upper()
 
-    1  OS3580 S 08NOV 7 GGZVIE HK1 0600 0857 TRN E 1
+    if not line:
+        return None
 
-    1  *OS3580 S 08NOV GGZ VIE 3 0600 0857 E1/TRN
-    EN*OS 353 S 08NOV VIE 3 LYS 1 1015 1205 E0/E95 0605
-
-    Prepozna tudi številke letov z ločenim presledkom,
-    npr. OS 353, ter oznako vlaka TRN.
-    """
-
-    line = line.strip()
-
-    # Odstrani začetno številko segmenta, če je prisotna.
-    line = re.sub(r"^\s*\d+\s*", "", line)
-
-    # Odstrani morebitni prefiks iz drugega izpisa, npr. EN*.
     # Odstranimo začetno številko segmenta oziroma povezave.
+    # Deluje za "1 IB 684" in "2VY IB5380".
     line = re.sub(r"^\s*\d+\s*", "", line)
 
-    # Odstranimo morebitno oznako operativnega prevoznika,
-    # npr. VY v zapisu: VY IB5380.
+    # Odstranimo morebitno oznako pred zvezdico, npr. EN*OS 353.
     line = re.sub(
-        r"^[A-Z0-9]{2}\s+(?=[A-Z0-9]{2}\s*\d)",
+        r"^(?:[A-Z0-9]{1,3})?\*\s*",
         "",
         line,
-        flags=re.IGNORECASE,
     )
 
-    # Odstranimo morebitno Amadeusovo oznako pred segmentom.
+    # V zapisu "VY IB5380" ignoriramo operativnega prevoznika VY.
+    # Ohranimo IB5380 kot številko, ki jo želimo prikazati.
     line = re.sub(
-        r"^(?:[A-Z]{1,3})?\*\s*",
+        r"^[A-Z]{2}\s+(?=[A-Z]{2}\s*\d)",
         "",
         line,
-        flags=re.IGNORECASE,
     )
 
-
-    # Prepozna letalsko oznako in številko leta.
     header = re.match(
         r"^(?P<airline>[A-Z0-9]{2})\s*"
-        r"(?P<flight>[A-Z0-9]{1,6})\s+"
+        r"(?P<flight>\d{1,4}[A-Z]?)\s+"
         r"(?P<class>[A-Z])\s+"
         r"(?P<date>\d{1,2}[A-Z]{3})\b"
         r"(?P<rest>.*)$",
         line,
-        re.IGNORECASE,
     )
 
     if not header:
         return None
 
-    rest = header.group("rest").upper()
+    rest = header.group("rest")
 
-    # Prvi dve štirimestni vrednosti po datumu sta odhod in prihod.
-    times = re.findall(r"(?<!\d)\d{4}(?!\d)", rest)
+    # Prva dva štirimestna niza sta odhod in prihod.
+    times = re.findall(r"(?<!\d)(\d{4})(?!\d)", rest)
 
     if len(times) < 2:
         return None
 
-    departure_time, arrival_time = times[0], times[1]
-   
     # Relacijo iščemo pred prvim časom.
-    before_times = rest.split(departure_time, 1)[0]
+    before_times = rest.split(times[0], 1)[0]
 
     # Podprti zapisi:
     # GGZVIE
     # GGZ VIE
     # VIE 3 LYS 1
-    # VIE 3 LYS
-
+    # VCE MAD 4
     route_match = re.search(
         r"(?<![A-Z])([A-Z]{6})(?![A-Z])",
         before_times,
@@ -270,8 +251,7 @@ def extract_segment(line):
         destination = route[3:]
 
     else:
-        # Če so med letališčema številke terminalov,
-        # jih ignoriramo in vzamemo prvi dve tričrkovni oznaki.
+        # Številke terminalov ignoriramo.
         airport_codes = re.findall(
             r"(?<![A-Z])([A-Z]{3})(?![A-Z])",
             before_times,
@@ -283,30 +263,31 @@ def extract_segment(line):
         origin = airport_codes[0]
         destination = airport_codes[1]
 
-    # TRN mora biti samostojna oznaka ali del zapisa /TRN.
-    is_train = bool(
-        re.search(r"(?<![A-Z0-9])TRN(?![A-Z0-9])", line)
-    )
-
     return {
-        "airline": header.group("airline").upper(),
-        "flight_number": header.group("flight").upper(),
-        "date_token": header.group("date").upper(),
+        "airline": header.group("airline"),
+        "flight_number": header.group("flight"),
+        "date_token": header.group("date"),
         "origin": origin,
         "destination": destination,
-        "departure_time": departure_time,
-        "arrival_time": arrival_time,
-        "is_train": is_train,
+        "departure_time": times[0],
+        "arrival_time": times[1],
+        "is_train": bool(
+            re.search(r"(?<![A-Z0-9])TRN(?![A-Z0-9])", line)
+        ),
     }
 
 
 def parse_segments(raw):
+    """Podpira klasične in novejše oblike izpisa Amadeusa."""
+    raw_lines = [
+        line.strip()
+        for line in raw.splitlines()
+        if line.strip()
+    ]
+
     matched_lines = []
 
-    for line in raw.splitlines():
-        if not line.strip():
-            continue
-
+    for line in raw_lines:
         item = extract_segment(line)
 
         if item:
@@ -323,23 +304,31 @@ def parse_segments(raw):
         current_year,
     )
 
-    base_year = current_year
+    base_year = (
+        current_year + 1
+        if first_date and first_date < today
+        else current_year
+    )
 
-    if first_date and first_date < today:
-        base_year += 1
-
-    previous_date = None
     parsed = []
+    previous_date = None
 
     for item in matched_lines:
-        flight_date = parse_date(item["date_token"], base_year)
+        flight_date = parse_date(
+            item["date_token"],
+            base_year,
+        )
 
         if not flight_date:
             continue
 
+        # Če se datum premakne nazaj, predpostavimo novo leto.
         if previous_date and flight_date < previous_date:
             base_year += 1
-            flight_date = parse_date(item["date_token"], base_year)
+            flight_date = parse_date(
+                item["date_token"],
+                base_year,
+            )
 
         if not flight_date:
             continue
@@ -354,7 +343,6 @@ def parse_segments(raw):
 
         departure_time = item["departure_time"]
         arrival_time = item["arrival_time"]
-
         arrival_date = flight_date
 
         duration = time_difference_minutes(
@@ -366,11 +354,12 @@ def parse_segments(raw):
             destination_tz,
         )
 
-        # Če je prihod naslednji dan, popravimo datum prihoda.
+        # Če je prihod glede na lokalni čas pred odhodom,
+        # preverimo, ali let prispe naslednji dan.
         if duration is not None and duration < 0:
             next_day = flight_date + timedelta(days=1)
 
-            next_duration = time_difference_minutes(
+            next_day_duration = time_difference_minutes(
                 flight_date,
                 departure_time,
                 origin_tz,
@@ -379,9 +368,9 @@ def parse_segments(raw):
                 destination_tz,
             )
 
-            if next_duration is not None and next_duration >= 0:
+            if next_day_duration is not None and next_day_duration >= 0:
                 arrival_date = next_day
-                duration = next_duration
+                duration = next_day_duration
 
         parsed.append({
             "date": flight_date,
@@ -391,18 +380,26 @@ def parse_segments(raw):
             "destination": destination,
             "origin_city": origin_city,
             "destination_city": destination_city,
-            "departure": departure_time[:2] + ":" + departure_time[2:],
-            "arrival": arrival_time[:2] + ":" + arrival_time[2:],
+            "departure": (
+                departure_time[:2] + ":" + departure_time[2:]
+            ),
+            "arrival": (
+                arrival_time[:2] + ":" + arrival_time[2:]
+            ),
             "duration_minutes": duration,
             "arrival_date": arrival_date,
-            "layover_minutes": None,
         })
 
-    # Izračun prestopov med zaporednimi segmenti.
-    for i in range(len(parsed) - 1):
-        segment = parsed[i]
+    # Izračun časa prestopa med zaporednimi segmenti.
+    for i, segment in enumerate(parsed):
+        segment["layover_minutes"] = None
+
+        if i >= len(parsed) - 1:
+            continue
+
         next_segment = parsed[i + 1]
 
+        # Prestop izračunamo samo na istem letališču.
         if segment["destination"] != next_segment["origin"]:
             continue
 
@@ -415,24 +412,23 @@ def parse_segments(raw):
                 "%Y-%m-%d %H:%M",
             ).replace(tzinfo=ZoneInfo(timezone_name))
 
-            departure_dt = datetime.strptime(
+            next_departure_dt = datetime.strptime(
                 f"{next_segment['date'].isoformat()} "
                 f"{next_segment['departure']}",
                 "%Y-%m-%d %H:%M",
             ).replace(tzinfo=ZoneInfo(timezone_name))
 
-            difference = int(
-                (departure_dt - arrival_dt).total_seconds() // 60
+            layover_minutes = int(
+                (next_departure_dt - arrival_dt).total_seconds() // 60
             )
 
-            if 0 <= difference <= 18 * 60:
-                segment["layover_minutes"] = difference
+            if 0 <= layover_minutes <= 18 * 60:
+                segment["layover_minutes"] = layover_minutes
 
         except Exception:
             segment["layover_minutes"] = None
 
     return parsed
-
 
 # ---------------------------------------------------------
 # BESEDILNI PREGLED IN VRSTICE TABELE

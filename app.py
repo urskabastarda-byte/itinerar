@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 import streamlit as st
+import airportsdata
 import streamlit.components.v1 as components
 
 
@@ -86,15 +87,43 @@ AIRPORTS = {
 # POMOŽNE FUNKCIJE
 # ---------------------------------------------------------
 
+# Naložimo celotno bazo IATA kod iz knjižnice airportsdata.
+# Ključi slovarja so trimestne IATA kode.
+try:
+    AIRPORT_DATABASE = airportsdata.load("IATA")
+except Exception:
+    # Če se knjižnica ali njeni podatki iz kakršnegakoli razloga ne naložijo,
+    # aplikacija še vedno lahko uporabi spodnji lasten slovar.
+    AIRPORT_DATABASE = {}
+
+
 def airport_info(code):
-    code = code.upper()
+    code = (code or "").strip().upper()
 
-    if code in AIRPORTS:
-        return AIRPORTS[code]
+    # Najprej poiščemo podatke v obsežni bazi.
+    airport = AIRPORT_DATABASE.get(code, {})
 
-    # Neznane kode se še vedno prikažejo, vendar brez
-    # posebnega časovnega pasu.
-    return code, "UTC"
+    # Nato ohranimo naša ročno določena imena, ki imajo prednost
+    # pred privzetimi angleškimi imeni iz baze.
+    local_name, fallback_timezone = AIRPORTS.get(code, ("", "UTC"))
+
+    city = (
+        local_name
+        or airport.get("city")
+        or airport.get("name")
+        or code
+    )
+
+    timezone_name = airport.get("tz") or fallback_timezone or "UTC"
+
+    # Preverimo, ali je časovni pas veljaven. Napačen ali manjkajoč podatek
+    # ne sme povzročiti sesutja aplikacije.
+    try:
+        ZoneInfo(timezone_name)
+    except Exception:
+        timezone_name = "UTC"
+
+    return city, timezone_name
 
 
 def parse_date(token, year):

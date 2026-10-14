@@ -206,7 +206,7 @@ def extract_segment(line):
     line = re.sub(r"^\s*\d+\s+", "", line)
 
     # Odstrani morebitni prefiks iz drugega izpisa, npr. EN*.
-```python
+
 # Odstranimo začetno številko segmenta oziroma povezave.
 line = re.sub(r"^\s*\d+\s*", "", line)
 

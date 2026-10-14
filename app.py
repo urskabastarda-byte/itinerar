@@ -1,4 +1,4 @@
-```python
+
 import re
 import html
 import json
@@ -670,4 +670,4 @@ if st.session_state.get("segments"):
     )
 
     render_copyable_table(rows)
-```
+

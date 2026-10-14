@@ -202,9 +202,22 @@ def extract_segment(line):
     line = line.strip()
 
     # Odstrani začetno številko segmenta, če je prisotna.
-    line = re.sub(r"^\s*\d+\s+", "", line)
+    line = re.sub(r"^\s*\d+\s*", "", line)
 
     # Odstrani morebitni prefiks iz drugega izpisa, npr. EN*.
+    # Odstranimo začetno številko segmenta oziroma povezave.
+    line = re.sub(r"^\s*\d+\s*", "", line)
+
+    # Odstranimo morebitno oznako operativnega prevoznika,
+    # npr. VY v zapisu: VY IB5380.
+    line = re.sub(
+        r"^[A-Z0-9]{2}\s+(?=[A-Z0-9]{2}\s*\d)",
+        "",
+        line,
+        flags=re.IGNORECASE,
+    )
+
+    # Odstranimo morebitno Amadeusovo oznako pred segmentom.
     line = re.sub(
         r"^(?:[A-Z]{1,3})?\*\s*",
         "",
@@ -212,10 +225,11 @@ def extract_segment(line):
         flags=re.IGNORECASE,
     )
 
+
     # Prepozna letalsko oznako in številko leta.
     header = re.match(
         r"^(?P<airline>[A-Z0-9]{2})\s*"
-        r"(?P<flight>[A-Z0-9]{1,4})\s+"
+        r"(?P<flight>[A-Z0-9]{1,6})\s+"
         r"(?P<class>[A-Z])\s+"
         r"(?P<date>\d{1,2}[A-Z]{3})\b"
         r"(?P<rest>.*)$",
@@ -235,22 +249,39 @@ def extract_segment(line):
         return None
 
     departure_time, arrival_time = times[0], times[1]
-
-    # Relacijo iščemo pred prvim časom, da ne zamenjamo
-    # drugih oznak na koncu vrstice za letališča.
+   
+    # Relacijo iščemo pred prvim časom.
     before_times = rest.split(departure_time, 1)[0]
 
-    # Oblika GGZVIE ali GGZ VIE.
+    # Podprti zapisi:
+    # GGZVIE
+    # GGZ VIE
+    # VIE 3 LYS 1
+    # VIE 3 LYS
+
     route_match = re.search(
-        r"(?<![A-Z])([A-Z]{3})\s*([A-Z]{3})(?![A-Z])",
+        r"(?<![A-Z])([A-Z]{6})(?![A-Z])",
         before_times,
     )
 
-    if not route_match:
-        return None
+    if route_match:
+        route = route_match.group(1)
+        origin = route[:3]
+        destination = route[3:]
 
-    origin = route_match.group(1)
-    destination = route_match.group(2)
+    else:
+        # Če so med letališčema številke terminalov,
+        # jih ignoriramo in vzamemo prvi dve tričrkovni oznaki.
+        airport_codes = re.findall(
+            r"(?<![A-Z])([A-Z]{3})(?![A-Z])",
+            before_times,
+        )
+
+        if len(airport_codes) < 2:
+            return None
+
+        origin = airport_codes[0]
+        destination = airport_codes[1]
 
     # TRN mora biti samostojna oznaka ali del zapisa /TRN.
     is_train = bool(

@@ -491,14 +491,14 @@ td_base = (
     "font-weight:400;"
 )
 
-    nowrap_columns = {
+    nowrap_columns = (
         "Datum",
         "Let",
         "Odhod",
         "Prihod",
         "Trajanje leta",
         "Čas prestopa",
-    }
+    )
 
     html_rows = [
         f'<table style="{table_style}"><thead><tr>'

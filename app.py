@@ -219,23 +219,23 @@ line = re.sub(
     flags=re.IGNORECASE,
 )
 
-    # Odstranimo morebitno Amadeusovo oznako pred segmentom.
-    line = re.sub(
-        r"^(?:[A-Z]{1,3})?\*\s*",
-        "",
-        line,
-        flags=re.IGNORECASE,
+# Odstranimo morebitno Amadeusovo oznako pred segmentom.
+line = re.sub(
+    r"^(?:[A-Z]{1,3})?\*\s*",
+    "",
+    line,
+    flags=re.IGNORECASE,
 )
 
-    # Prepozna letalsko oznako in številko leta.
-    header = re.match(
-        r"^(?P<airline>[A-Z0-9]{2})\s*"
-        r"(?P<flight>[A-Z0-9]{1,4})\s+"
-        r"(?P<class>[A-Z])\s+"
-        r"(?P<date>\d{1,2}[A-Z]{3})\b"
-        r"(?P<rest>.*)$",
-        line,
-        re.IGNORECASE,
+# Prepozna letalsko oznako in številko leta.
+header = re.match(
+    r"^(?P<airline>[A-Z0-9]{2})\s*"
+    r"(?P<flight>[A-Z0-9]{1,4})\s+"
+    r"(?P<class>[A-Z])\s+"
+    r"(?P<date>\d{1,2}[A-Z]{3})\b"
+    r"(?P<rest>.*)$",
+    line,
+    re.IGNORECASE,
     )
 
     if not header:

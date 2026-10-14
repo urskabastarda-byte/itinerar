@@ -236,21 +236,39 @@ def extract_segment(line):
 
     departure_time, arrival_time = times[0], times[1]
 
-    # Relacijo iščemo pred prvim časom, da ne zamenjamo
-    # drugih oznak na koncu vrstice za letališča.
+
+    # Relacijo iščemo pred prvim časom.
     before_times = rest.split(departure_time, 1)[0]
 
-    # Oblika GGZVIE ali GGZ VIE.
+    # Podprti zapisi:
+    # GGZVIE
+    # GGZ VIE
+    # VIE 3 LYS 1
+    # VIE 3 LYS
+
     route_match = re.search(
-        r"(?<![A-Z])([A-Z]{3})\s*([A-Z]{3})(?![A-Z])",
+        r"(?<![A-Z])([A-Z]{6})(?![A-Z])",
         before_times,
     )
 
-    if not route_match:
-        return None
+    if route_match:
+        route = route_match.group(1)
+        origin = route[:3]
+        destination = route[3:]
 
-    origin = route_match.group(1)
-    destination = route_match.group(2)
+    else:
+        # Če so med letališčema številke terminalov,
+        # jih ignoriramo in vzamemo prvi dve tričrkovni oznaki.
+        airport_codes = re.findall(
+            r"(?<![A-Z])([A-Z]{3})(?![A-Z])",
+            before_times,
+        )
+
+        if len(airport_codes) < 2:
+            return None
+
+        origin = airport_codes[0]
+        destination = airport_codes[1]
 
     # TRN mora biti samostojna oznaka ali del zapisa /TRN.
     is_train = bool(

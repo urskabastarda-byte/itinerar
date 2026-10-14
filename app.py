@@ -1,4 +1,4 @@
-
+```python
 import re
 import html
 import json
@@ -24,7 +24,6 @@ st.caption(
 
 # ---------------------------------------------------------
 # LETALIŠČA
-# Ključ: IATA koda; vrednost: slovensko ime mesta in časovni pas
 # ---------------------------------------------------------
 
 AIRPORTS = {
@@ -80,7 +79,7 @@ AIRPORTS = {
     "MEX": ("Mexico City", "America/Mexico City"),
     "GDL": ("Guadalajara", "America/Guadalajara"),
     "ATL": ("Atlanta", "America/Atlanta"),
-    "DPS": ("Bali Denpasar", "Asia/Indonesia")
+    "DPS": ("Bali Denpasar", "Asia/Indonesia"),
 }
 
 
@@ -88,24 +87,15 @@ AIRPORTS = {
 # POMOŽNE FUNKCIJE
 # ---------------------------------------------------------
 
-# Naložimo celotno bazo IATA kod iz knjižnice airportsdata.
-# Ključi slovarja so trimestne IATA kode.
 try:
     AIRPORT_DATABASE = airportsdata.load("IATA")
 except Exception:
-    # Če se knjižnica ali njeni podatki iz kakršnegakoli razloga ne naložijo,
-    # aplikacija še vedno lahko uporabi spodnji lasten slovar.
     AIRPORT_DATABASE = {}
 
 
 def airport_info(code):
     code = (code or "").strip().upper()
-
-    # Najprej poiščemo podatke v obsežni bazi.
     airport = AIRPORT_DATABASE.get(code, {})
-
-    # Nato ohranimo naša ročno določena imena, ki imajo prednost
-    # pred privzetimi angleškimi imeni iz baze.
     local_name, fallback_timezone = AIRPORTS.get(code, ("", "UTC"))
 
     city = (
@@ -117,8 +107,6 @@ def airport_info(code):
 
     timezone_name = airport.get("tz") or fallback_timezone or "UTC"
 
-    # Preverimo, ali je časovni pas veljaven. Napačen ali manjkajoč podatek
-    # ne sme povzročiti sesutja aplikacije.
     try:
         ZoneInfo(timezone_name)
     except Exception:
@@ -191,7 +179,7 @@ def time_difference_minutes(
 
         return int((end_dt - start_dt).total_seconds() // 60)
 
-    except (ValueError, KeyError, Exception):
+    except Exception:
         return None
 
 
@@ -215,11 +203,6 @@ def parse_segments(raw):
         if line.strip()
     ]
 
-    parsed = []
-
-    # Namesto strogega preverjanja celotne vrstice najprej
-    # prepoznamo osnovne podatke segmenta. Za časi lahko
-    # sledijo še dodatne oznake, ki jih ignoriramo.
     pattern = re.compile(
         r"^\s*\d+\s+"
         r"(?P<airline>[A-Z0-9]{2})\s*"
@@ -241,8 +224,6 @@ def parse_segments(raw):
         if not match:
             continue
 
-        # Po statusu rezervacije poiščemo prva dva štirimestna
-        # zapisa časa, ne glede na dodatne številke ali oznake.
         times = re.findall(
             r"(?<!\d)(\d{4})(?!\d)",
             match.group("rest"),
@@ -269,8 +250,6 @@ def parse_segments(raw):
     if not matched_lines:
         return []
 
-    # Samodejna ocena leta:
-    # če je prvi datum že mimo, predpostavimo naslednje leto.
     today = date.today()
     current_year = today.year
 
@@ -285,6 +264,7 @@ def parse_segments(raw):
         base_year = current_year
 
     previous_date = None
+    parsed = []
 
     for item in matched_lines:
         flight_date = parse_date(item["date_token"], base_year)
@@ -292,8 +272,6 @@ def parse_segments(raw):
         if not flight_date:
             continue
 
-        # Če se datum v zaporedju premakne nazaj, gre praviloma
-        # za prehod v naslednje koledarsko leto.
         if previous_date and flight_date < previous_date:
             base_year += 1
             flight_date = parse_date(item["date_token"], base_year)
@@ -323,7 +301,6 @@ def parse_segments(raw):
             destination_tz,
         )
 
-        # Če je trajanje negativno, preverimo prihod naslednji dan.
         if duration is not None and duration < 0:
             next_day = flight_date + timedelta(days=1)
 
@@ -342,19 +319,13 @@ def parse_segments(raw):
 
         parsed.append({
             "date": flight_date,
-            "flight": (
-                f"{item['airline']}{item['flight_number']}"
-            ),
+            "flight": f"{item['airline']}{item['flight_number']}",
             "origin": origin,
             "destination": destination,
             "origin_city": origin_city,
             "destination_city": destination_city,
-            "departure": (
-                departure_time[:2] + ":" + departure_time[2:]
-            ),
-            "arrival": (
-                arrival_time[:2] + ":" + arrival_time[2:]
-            ),
+            "departure": departure_time[:2] + ":" + departure_time[2:],
+            "arrival": arrival_time[:2] + ":" + arrival_time[2:],
             "duration_minutes": duration,
             "arrival_date": arrival_date,
         })
@@ -368,8 +339,6 @@ def parse_segments(raw):
 
         next_segment = parsed[i + 1]
 
-        # Prestop izračunamo le, kadar naslednji let odleti
-        # z letališča, na katerem se prejšnji konča.
         if segment["destination"] != next_segment["origin"]:
             continue
 
@@ -447,7 +416,7 @@ def display_table(segments):
 
 
 # ---------------------------------------------------------
-# HTML TABELE – ELEGANTNA MODRA RAZLIČICA B
+# HTML TABELA – MODRO-ZLATA RAZLIČICA C + ROBOTO
 # ---------------------------------------------------------
 
 def render_copyable_table(rows):
@@ -456,49 +425,48 @@ def render_copyable_table(rows):
 
     headers = list(rows[0].keys())
 
-    # Osnovni videz tabele
-table_style = (
-    "border-collapse:collapse;"
-    "width:auto;"
-    "max-width:100%;"
-    "font-family:Roboto,Arial,Helvetica,sans-serif;"
-    "font-size:13px;"
-    "font-weight:400;"
-    "color:#263445;"
-)
+    table_style = (
+        "border-collapse:collapse;"
+        "width:auto;"
+        "max-width:100%;"
+        "font-family:Roboto,Arial,Helvetica,sans-serif;"
+        "font-size:13px;"
+        "font-weight:400;"
+        "color:#263445;"
+    )
 
+    # Glava: modra, bela krepka pisava in rumena spodnja črta.
+    th_style = (
+        "background-color:#004899;"
+        "color:#FFFFFF;"
+        "font-family:Roboto,Arial,Helvetica,sans-serif;"
+        "font-size:13px;"
+        "font-weight:700;"
+        "text-align:left;"
+        "padding:9px 10px;"
+        "border:1px solid #D5DEE7;"
+        "border-bottom:4px solid #FBB900;"
+        "white-space:nowrap;"
+    )
 
-    # Temno moder naslov z belim besedilom
-th_style = (
-    "background-color:#004899;"
-    "color:#FFFFFF;"
-    "font-family:Roboto,Arial,Helvetica,sans-serif;"
-    "font-size:13px;"
-    "font-weight:700;"
-    "text-align:left;"
-    "padding:9px 10px;"
-    "border:1px solid #D5DEE7;"
-    "border-bottom:4px solid #FBB900;"
-    "white-space:nowrap;"
-)
+    # Vsebina: običajna debelina pisave.
+    td_base = (
+        "padding:8px 10px;"
+        "border:1px solid #D5DEE7;"
+        "vertical-align:top;"
+        "font-family:Roboto,Arial,Helvetica,sans-serif;"
+        "font-size:13px;"
+        "font-weight:400;"
+    )
 
-td_base = (
-    "padding:8px 10px;"
-    "border:1px solid #D5DEE7;"
-    "vertical-align:top;"
-    "font-family:Roboto,Arial,Helvetica,sans-serif;"
-    "font-size:13px;"
-    "font-weight:400;"
-)
-
-    nowrap_columns = (
+    nowrap_columns = {
         "Datum",
         "Let",
         "Odhod",
         "Prihod",
         "Trajanje leta",
         "Čas prestopa",
-    )
+    }
 
     html_rows = [
         f'<table style="{table_style}"><thead><tr>'
@@ -512,7 +480,7 @@ td_base = (
     html_rows.append("</tr></thead><tbody>")
 
     for row_index, row in enumerate(rows):
-        # Izmenično bela in nežno rumenkasta ozadja
+        # Izmenično belo in nežno rumenkasto ozadje.
         background = "#FFF9E8" if row_index % 2 else "#FFFFFF"
 
         html_rows.append("<tr>")
@@ -544,7 +512,7 @@ td_base = (
 
     table_html = "".join(html_rows)
 
-    # Rezervna možnost kopiranja kot navadno besedilo
+    # Navadno besedilo kot rezervna možnost kopiranja.
     tsv_lines = ["\t".join(headers)]
 
     for row in rows:
@@ -554,13 +522,19 @@ td_base = (
 
     tsv_text = "\n".join(tsv_lines)
 
-    # Varno posredovanje vsebine v JavaScript
     safe_html = json.dumps(table_html, ensure_ascii=False)
     safe_tsv = json.dumps(tsv_text, ensure_ascii=False)
 
     components.html(
         f"""
-        <div style="font-family:Arial,Helvetica,sans-serif;">
+        <div style="font-family:Roboto,Arial,Helvetica,sans-serif;">
+
+          <style>
+            @import url(
+              'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap'
+            );
+          </style>
+
           <button id="copyTable"
             style="
               background:#004899;
@@ -568,6 +542,7 @@ td_base = (
               border:2px solid #FBB900;
               border-radius:5px;
               padding:8px 13px;
+              font-family:Roboto,Arial,Helvetica,sans-serif;
               font-size:13px;
               font-weight:700;
               cursor:pointer;
@@ -577,7 +552,12 @@ td_base = (
           </button>
 
           <span id="copyStatus"
-            style="font-size:12px;color:#526579;margin-left:8px;">
+            style="
+              font-family:Roboto,Arial,Helvetica,sans-serif;
+              font-size:12px;
+              color:#526579;
+              margin-left:8px;
+            ">
           </span>
 
           <div style="overflow-x:auto;">
@@ -609,16 +589,19 @@ td_base = (
 
                   await navigator.clipboard.write([item]);
                   status.textContent = "Tabela je kopirana.";
+
                 }} else if (
                   navigator.clipboard &&
                   navigator.clipboard.writeText
                 ) {{
                   await navigator.clipboard.writeText(plainText);
                   status.textContent = "Kopirano kot besedilo.";
+
                 }} else {{
                   status.textContent =
                     "Kopiranje ni podprto. Označi tabelo in jo kopiraj.";
                 }}
+
               }} catch (err) {{
                 status.textContent =
                   "Kopiranje ni uspelo. Poskusi ponovno ali kopiraj tabelo ročno.";
@@ -630,7 +613,6 @@ td_base = (
         height=max(190, 65 + 39 * len(rows)),
         scrolling=True,
     )
-
 
 
 # ---------------------------------------------------------
@@ -688,3 +670,4 @@ if st.session_state.get("segments"):
     )
 
     render_copyable_table(rows)
+```

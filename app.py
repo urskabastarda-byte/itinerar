@@ -219,12 +219,12 @@ line = re.sub(
     flags=re.IGNORECASE,
 )
 
-# Odstranimo morebitno Amadeusovo oznako pred segmentom.
-line = re.sub(
-    r"^(?:[A-Z]{1,3})?\*\s*",
-    "",
-    line,
-    flags=re.IGNORECASE,
+    # Odstranimo morebitno Amadeusovo oznako pred segmentom.
+    line = re.sub(
+        r"^(?:[A-Z]{1,3})?\*\s*",
+        "",
+        line,
+        flags=re.IGNORECASE,
 )
 
     # Prepozna letalsko oznako in številko leta.

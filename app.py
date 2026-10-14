@@ -81,6 +81,7 @@ AIRPORTS = {
     "ATL": ("Atlanta", "America/Atlanta"),
     "DPS": ("Bali Denpasar", "Asia/Indonesia"),
     "EZE": ("Buenos Aires Ezeiza", "South America/Buenos Aires"),
+    "GGZ": ("Gradec železniška postaja", "Europe/Ljubljana"),
 }
 
 

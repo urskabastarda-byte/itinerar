@@ -457,32 +457,39 @@ def render_copyable_table(rows):
     headers = list(rows[0].keys())
 
     # Osnovni videz tabele
-    table_style = (
-        "border-collapse:collapse;"
-        "width:auto;"
-        "max-width:100%;"
-        "font-family:Arial,Helvetica,sans-serif;"
-        "font-size:13px;"
-        "color:#263445;"
-    )
+table_style = (
+    "border-collapse:collapse;"
+    "width:auto;"
+    "max-width:100%;"
+    "font-family:Roboto,Arial,Helvetica,sans-serif;"
+    "font-size:13px;"
+    "font-weight:400;"
+    "color:#263445;"
+)
+
 
     # Temno moder naslov z belim besedilom
-    th_style = (
-        "background-color:#004899;"
-        "color:#FFFFFF;"
-        "font-weight:700;"
-        "text-align:left;"
-        "padding:9px 10px;"
-        "border:1px solid #D5DEE7;"
-        "border-bottom:4px solid #FBB900;"
-        "white-space:nowrap;"
-    )
+th_style = (
+    "background-color:#004899;"
+    "color:#FFFFFF;"
+    "font-family:Roboto,Arial,Helvetica,sans-serif;"
+    "font-size:13px;"
+    "font-weight:700;"
+    "text-align:left;"
+    "padding:9px 10px;"
+    "border:1px solid #D5DEE7;"
+    "border-bottom:4px solid #FBB900;"
+    "white-space:nowrap;"
+)
 
-    td_base = (
-        "padding:8px 10px;"
-        "border:1px solid #D5DEE7;"
-        "vertical-align:top;"
-    )
+td_base = (
+    "padding:8px 10px;"
+    "border:1px solid #D5DEE7;"
+    "vertical-align:top;"
+    "font-family:Roboto,Arial,Helvetica,sans-serif;"
+    "font-size:13px;"
+    "font-weight:400;"
+)
 
     nowrap_columns = {
         "Datum",

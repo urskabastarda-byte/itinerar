@@ -206,12 +206,26 @@ def extract_segment(line):
     line = re.sub(r"^\s*\d+\s+", "", line)
 
     # Odstrani morebitni prefiks iz drugega izpisa, npr. EN*.
-    line = re.sub(
-        r"^(?:[A-Z]{1,3})?\*\s*",
-        "",
-        line,
-        flags=re.IGNORECASE,
-    )
+```python
+# Odstranimo začetno številko segmenta oziroma povezave.
+line = re.sub(r"^\s*\d+\s*", "", line)
+
+# Odstranimo morebitno oznako operativnega prevoznika,
+# npr. VY v zapisu: VY IB5380.
+line = re.sub(
+    r"^[A-Z0-9]{2}\s+(?=[A-Z0-9]{2}\s*\d)",
+    "",
+    line,
+    flags=re.IGNORECASE,
+)
+
+# Odstranimo morebitno Amadeusovo oznako pred segmentom.
+line = re.sub(
+    r"^(?:[A-Z]{1,3})?\*\s*",
+    "",
+    line,
+    flags=re.IGNORECASE,
+)
 
     # Prepozna letalsko oznako in številko leta.
     header = re.match(

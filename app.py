@@ -456,6 +456,7 @@ def render_copyable_table(rows):
 
     headers = list(rows[0].keys())
 
+    # Osnovni videz tabele
     table_style = (
         "border-collapse:collapse;"
         "width:auto;"
@@ -465,18 +466,20 @@ def render_copyable_table(rows):
         "color:#263445;"
     )
 
+    # Temno moder naslov z belim besedilom
     th_style = (
-        "background-color:#23476A;"
+        "background-color:#004899;"
         "color:#FFFFFF;"
         "font-weight:700;"
         "text-align:left;"
-        "padding:7px 9px;"
+        "padding:9px 10px;"
         "border:1px solid #D5DEE7;"
+        "border-bottom:4px solid #FBB900;"
         "white-space:nowrap;"
     )
 
     td_base = (
-        "padding:7px 9px;"
+        "padding:8px 10px;"
         "border:1px solid #D5DEE7;"
         "vertical-align:top;"
     )
@@ -502,7 +505,9 @@ def render_copyable_table(rows):
     html_rows.append("</tr></thead><tbody>")
 
     for row_index, row in enumerate(rows):
-        background = "#F0F6FB" if row_index % 2 else "#FFFFFF"
+        # Izmenično bela in nežno rumenkasta ozadja
+        background = "#FFF9E8" if row_index % 2 else "#FFFFFF"
+
         html_rows.append("<tr>")
 
         for header in headers:
@@ -532,7 +537,7 @@ def render_copyable_table(rows):
 
     table_html = "".join(html_rows)
 
-    # Navadno besedilo kot rezervna možnost kopiranja.
+    # Rezervna možnost kopiranja kot navadno besedilo
     tsv_lines = ["\t".join(headers)]
 
     for row in rows:
@@ -542,8 +547,7 @@ def render_copyable_table(rows):
 
     tsv_text = "\n".join(tsv_lines)
 
-    # JSON varno prenese vsebino v JavaScript, tudi narekovaje
-    # in posebne znake v imenih mest.
+    # Varno posredovanje vsebine v JavaScript
     safe_html = json.dumps(table_html, ensure_ascii=False)
     safe_tsv = json.dumps(tsv_text, ensure_ascii=False)
 
@@ -552,13 +556,13 @@ def render_copyable_table(rows):
         <div style="font-family:Arial,Helvetica,sans-serif;">
           <button id="copyTable"
             style="
-              background:#23476A;
-              color:#FFFFFF;
-              border:0;
+              background:#004899;
+              color:#FBB900;
+              border:2px solid #FBB900;
               border-radius:5px;
               padding:8px 13px;
               font-size:13px;
-              font-weight:600;
+              font-weight:700;
               cursor:pointer;
               margin:0 0 10px 0;
             ">
@@ -619,6 +623,7 @@ def render_copyable_table(rows):
         height=max(190, 65 + 39 * len(rows)),
         scrolling=True,
     )
+
 
 
 # ---------------------------------------------------------

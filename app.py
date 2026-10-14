@@ -80,6 +80,7 @@ AIRPORTS = {
     "MEX": ("Mexico City", "America/Mexico City"),
     "GDL": ("Guadalajara", "America/Guadalajara"),
     "ATL": ("Atlanta", "America/Atlanta")
+    "DPS": ("Bali Denpasar", "Asia/Indonesia")
 }
 
 

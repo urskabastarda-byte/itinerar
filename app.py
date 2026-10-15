@@ -694,7 +694,7 @@ def render_copyable_table(rows):
         connected_border = (
             f""
             if row.get("_connected_to_next")
-            else "border-bottom:2px solid {GOLD};"
+            else "border-bottom:1.5 px solid {GOLD};"
         )
 
         html_rows.append("<tr>")

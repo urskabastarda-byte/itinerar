@@ -1,4 +1,4 @@
-
+```python
 import re
 import html
 import json
@@ -579,6 +579,50 @@ def parse_segments(raw):
 
     return parsed
 
+
+# =========================================================
+# BESEDILNI PREGLED
+# =========================================================
+
+def format_text(segments):
+    lines = []
+
+    for segment in segments:
+        date_text = segment["date"].strftime("%d.%m.%Y")
+
+        route = (
+            f"{segment['origin_city']} ({segment['origin']}) – "
+            f"{segment['destination_city']} "
+            f"({segment['destination']})"
+        )
+
+        duration = format_duration(
+            segment["duration_minutes"]
+        )
+
+        flight_text = segment["flight"]
+
+        if segment["airline_name"]:
+            flight_text += f" – {segment['airline_name']}"
+
+        if segment["is_train"]:
+            flight_text += " (vlak)"
+
+        lines.append(
+            f"{date_text} | {flight_text} | {route} | "
+            f"{segment['departure']}–{segment['arrival']} | "
+            f"{duration}"
+        )
+
+        if segment["connected_to_next"]:
+            lines.append(
+                "  Prestop: "
+                + format_duration(segment["layover_minutes"])
+            )
+
+    return "\n".join(lines)
+
+
 # =========================================================
 # PODATKI ZA TABEL
 # =========================================================
@@ -919,3 +963,4 @@ if st.session_state.get("segments"):
             "Opomba: brezplačna baza letalskih družb trenutno ni "
             "dosegljiva. Številke letov so še vedno prikazane."
         )
+```

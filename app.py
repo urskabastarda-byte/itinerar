@@ -893,18 +893,6 @@ if st.session_state.get("segments"):
     segments = st.session_state["segments"]
     rows = display_table(segments)
 
-    st.subheader("Besedilni pregled")
-
-    text_output = format_text(segments)
-    st.code(text_output, language=None)
-
-    st.download_button(
-        label="⬇️ Prenesi besedilo (.txt)",
-        data=text_output,
-        file_name="potovalni_nacrt.txt",
-        mime="text/plain",
-    )
-
     st.subheader("Tabela za Loop ali e-pošto")
     st.caption(
         "Klikni »Kopiraj tabelo« in jo prilepi v Loop ali e-pošto. "

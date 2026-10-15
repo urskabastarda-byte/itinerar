@@ -735,14 +735,10 @@ def render_copyable_table(rows):
 
         # Rumena črta samo ob koncu sklopa povezanih letov,
         # če naslednji let ni povezava na trenutno destinacijo.
-        if row.get("connected_to_next"):
-        row_border = ""
-            else:
-       row_border = "border-bottom: 1px solid #FBB900;"
-            connected_border = (
-            f"border-bottom:1px solid {GOLD};"
+        connected_border = (
+            f""
             if row.get("_connected_to_next")
-            else ""
+            else "border-bottom:1px solid {GOLD};"
         )
 
         html_rows.append("<tr>")

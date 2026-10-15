@@ -733,10 +733,14 @@ def render_copyable_table(rows):
             PALE_YELLOW if row_index % 2 else WHITE
         )
 
-        # Rumena črta debeline 2 px samo pod segmentom,
-        # ki ima naslednji povezani segment.
-        connected_border = (
-            f"border-bottom:2px solid {GOLD};"
+        # Rumena črta samo ob koncu sklopa povezanih letov,
+        # če naslednji let ni povezava na trenutno destinacijo.
+        if row.get("connected_to_next"):
+        row_border = ""
+            else:
+       row_border = "border-bottom: 1px solid #FBB900;"
+            connected_border = (
+            f"border-bottom:1px solid {GOLD};"
             if row.get("_connected_to_next")
             else ""
         )

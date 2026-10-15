@@ -1,4 +1,4 @@
-```python
+
 import re
 import html
 import json
@@ -963,4 +963,4 @@ if st.session_state.get("segments"):
             "Opomba: brezplačna baza letalskih družb trenutno ni "
             "dosegljiva. Številke letov so še vedno prikazane."
         )
-```
+

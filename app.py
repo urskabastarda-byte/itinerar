@@ -1,4 +1,4 @@
-```python
+
 import re
 import html
 import json
@@ -79,7 +79,7 @@ AIRPORTS = {
     "ATL": ("Atlanta", "America/New_York"),
     "DPS": ("Bali Denpasar", "Asia/Makassar"),
     "EZE": ("Buenos Aires Ezeiza", "America/Argentina/Buenos_Aires"),
-    "GGZ": ("Gradec železniška postaja", "Europe/Vienna"),
+    "GGZ": ("Železniška postaja Gradec", "Europe/Vienna"),
 }
 
 # Imena letalskih družb po IATA kodah.
@@ -811,4 +811,3 @@ if st.session_state.get("segments"):
     )
 
     render_copyable_table(rows)
-```

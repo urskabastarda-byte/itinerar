@@ -584,4 +584,382 @@ def parse_segments(raw):
 # BESEDILNI PREGLED
 # =========================================================
 
-def format_text(
+def format_text(segments):
+    lines = []
+
+    for segment in segments:
+        date_text = segment["date"].strftime("%d.%m.%Y")
+
+        route = (
+            f"{segment['origin_city']} ({segment['origin']}) – "
+            f"{segment['destination_city']} "
+            f"({segment['destination']})"
+        )
+
+        duration = format_duration(
+            segment["duration_minutes"]
+        )
+
+        flight_text = segment["flight"]
+
+        if segment["airline_name"]:
+            flight_text += f" – {segment['airline_name']}"
+
+        if segment["is_train"]:
+            flight_text += " (vlak)"
+
+        lines.append(
+            f"{date_text} | {flight_text} | {route} | "
+            f"{segment['departure']}–{segment['arrival']} | "
+            f"{duration}"
+        )
+
+        if segment["connected_to_next"]:
+            lines.append(
+                "  Prestop: "
+                + format_duration(segment["layover_minutes"])
+            )
+
+    return "\n".join(lines)
+
+
+# =========================================================
+# PODATKI ZA TABEL
+# =========================================================
+
+def display_table(segments):
+    rows = []
+
+    for segment in segments:
+        flight_label = segment["flight"]
+
+        if segment["airline_name"]:
+            flight_label += "\n" + segment["airline_name"]
+
+        if segment["is_train"]:
+            flight_label += "\nvlak"
+
+        rows.append({
+            "Datum": segment["date"].strftime("%d.%m.%Y"),
+            "Let": flight_label,
+            "Relacija": (
+                f"{segment['origin_city']} ({segment['origin']}) – "
+                f"{segment['destination_city']} "
+                f"({segment['destination']})"
+            ),
+            "Odhod": segment["departure"],
+            "Prihod": segment["arrival"],
+            "Trajanje leta": format_duration(
+                segment["duration_minutes"]
+            ),
+            "Čas prestopa": format_duration(
+                segment["layover_minutes"]
+            ),
+            "_connected_to_next": segment["connected_to_next"],
+            "_flight": segment["flight"],
+            "_airline_name": segment["airline_name"],
+            "_is_train": segment["is_train"],
+        })
+
+    return rows
+
+
+# =========================================================
+# HTML TABELA ZA KOPIRANJE
+# =========================================================
+
+def render_copyable_table(rows):
+    if not rows:
+        return
+
+    headers = [
+        "Datum",
+        "Let",
+        "Relacija",
+        "Odhod",
+        "Prihod",
+        "Trajanje leta",
+        "Čas prestopa",
+    ]
+
+    table_style = (
+        "border-collapse:collapse;"
+        "width:auto;"
+        "max-width:100%;"
+        "font-family:Roboto,Arial,Helvetica,sans-serif;"
+        "font-size:13px;"
+        f"color:{TEXT_COLOR};"
+    )
+
+    th_style = (
+        f"background-color:{BLUE};"
+        "color:#FFFFFF;"
+        "font-weight:700;"
+        "text-align:left;"
+        "padding:8px 9px;"
+        f"border:1px solid {BORDER_COLOR};"
+        f"border-bottom:4px solid {GOLD};"
+        "white-space:nowrap;"
+    )
+
+    td_base = (
+        "padding:7px 9px;"
+        f"border:1px solid {BORDER_COLOR};"
+        "vertical-align:top;"
+        "font-family:Roboto,Arial,Helvetica,sans-serif;"
+    )
+
+    nowrap_columns = {
+        "Datum",
+        "Odhod",
+        "Prihod",
+        "Trajanje leta",
+        "Čas prestopa",
+    }
+
+    html_rows = [
+        f'<table style="{table_style}"><thead><tr>'
+    ]
+
+    for header in headers:
+        html_rows.append(
+            f'<th style="{th_style}">{html.escape(header)}</th>'
+        )
+
+    html_rows.append("</tr></thead><tbody>")
+
+    for row_index, row in enumerate(rows):
+        background = (
+            PALE_YELLOW if row_index % 2 else WHITE
+        )
+
+        # Rumena črta debeline 2 px samo pod segmentom,
+        # ki ima naslednji povezani segment.
+        connected_border = (
+            f"border-bottom:2px solid {GOLD};"
+            if row.get("_connected_to_next")
+            else ""
+        )
+
+        html_rows.append("<tr>")
+
+        for header in headers:
+            cell_style = (
+                td_base
+                + f"background-color:{background};"
+                + connected_border
+            )
+
+            if header in nowrap_columns:
+                cell_style += "white-space:nowrap;"
+            else:
+                cell_style += (
+                    "white-space:normal;"
+                    "overflow-wrap:anywhere;"
+                    "max-width:280px;"
+                )
+
+            if header == "Let":
+                flight = html.escape(row["_flight"])
+                airline = html.escape(row["_airline_name"])
+
+                flight_html = (
+                    f'<div style="font-weight:700;">{flight}</div>'
+                )
+
+                if airline:
+                    flight_html += (
+                        '<div style="font-size:11px;'
+                        'color:#526579;margin-top:2px;">'
+                        f'{airline}</div>'
+                    )
+
+                if row["_is_train"]:
+                    flight_html += (
+                        '<div style="font-size:11px;'
+                        'color:#526579;margin-top:2px;">'
+                        'vlak</div>'
+                    )
+
+                cell_value = flight_html
+
+            else:
+                cell_value = html.escape(str(row.get(header, "")))
+
+            html_rows.append(
+                f'<td style="{cell_style}">{cell_value}</td>'
+            )
+
+        html_rows.append("</tr>")
+
+    html_rows.append("</tbody></table>")
+
+    table_html = "".join(html_rows)
+
+    # Besedilna različica kot rezervna možnost kopiranja.
+    tsv_lines = ["\t".join(headers)]
+
+    for row in rows:
+        tsv_row = []
+
+        for header in headers:
+            if header == "Let":
+                value = row["_flight"]
+
+                if row["_airline_name"]:
+                    value += " – " + row["_airline_name"]
+
+                if row["_is_train"]:
+                    value += " (vlak)"
+
+            else:
+                value = str(row.get(header, ""))
+
+            tsv_row.append(value)
+
+        tsv_lines.append("\t".join(tsv_row))
+
+    tsv_text = "\n".join(tsv_lines)
+
+    safe_html = json.dumps(table_html, ensure_ascii=False)
+    safe_tsv = json.dumps(tsv_text, ensure_ascii=False)
+
+    components.html(
+        f"""
+        <div style="font-family:Roboto,Arial,Helvetica,sans-serif;">
+          <button id="copyTable"
+            style="
+              background:{BLUE};
+              color:{GOLD};
+              border:1px solid {GOLD};
+              border-radius:5px;
+              padding:8px 13px;
+              font-size:13px;
+              font-weight:600;
+              cursor:pointer;
+              margin:0 0 10px 0;
+            ">
+            📋 Kopiraj tabelo
+          </button>
+
+          <span id="copyStatus"
+            style="font-size:12px;color:#526579;margin-left:8px;">
+          </span>
+
+          <div style="overflow-x:auto;">
+            {table_html}
+          </div>
+        </div>
+
+        <script>
+          const htmlTable = {safe_html};
+          const plainText = {safe_tsv};
+
+          document.getElementById("copyTable").addEventListener(
+            "click",
+            async () => {{
+              const status = document.getElementById("copyStatus");
+
+              try {{
+                if (navigator.clipboard && window.ClipboardItem) {{
+                  const item = new ClipboardItem({{
+                    "text/html": new Blob(
+                      [htmlTable],
+                      {{type: "text/html"}}
+                    ),
+                    "text/plain": new Blob(
+                      [plainText],
+                      {{type: "text/plain"}}
+                    )
+                  }});
+
+                  await navigator.clipboard.write([item]);
+                  status.textContent = "Tabela je kopirana.";
+
+                }} else if (
+                  navigator.clipboard &&
+                  navigator.clipboard.writeText
+                ) {{
+                  await navigator.clipboard.writeText(plainText);
+                  status.textContent = "Kopirano kot besedilo.";
+
+                }} else {{
+                  status.textContent =
+                    "Kopiranje ni podprto. Označi tabelo in jo kopiraj.";
+                }}
+
+              }} catch (err) {{
+                status.textContent =
+                  "Kopiranje ni uspelo. Poskusi ponovno ali kopiraj tabelo ročno.";
+              }}
+            }}
+          );
+        </script>
+        """,
+        height=max(220, 75 + 58 * len(rows)),
+        scrolling=True,
+    )
+
+
+# =========================================================
+# UPORABNIŠKI VMESNIK
+# =========================================================
+
+raw_input = st.text_area(
+    "Prilepi Amadeus segmente",
+    height=220,
+    placeholder=(
+        "Primer:\n"
+        "1  IB 684 M 04DEC VCE MAD 4 0620 0900 E0/320\n"
+        "   IB 411 M 04DEC MAD 4 BCN 1 1125 1245 E0/320\n"
+        "2VY IB5380 Z 09DEC BCN 1 VCE 0720 0910 E0/321"
+    ),
+)
+
+if st.button("Ustvari potovalni načrt", type="primary"):
+    segments = parse_segments(raw_input)
+
+    if segments:
+        st.session_state["segments"] = segments
+        st.session_state["raw_input"] = raw_input
+        st.session_state.pop("parse_error", None)
+    else:
+        st.session_state.pop("segments", None)
+        st.session_state["parse_error"] = (
+            "Segmentov nisem prepoznala. Preveri, ali si prilepila "
+            "vrstice z datumi, številkami letov, relacijami in časi."
+        )
+
+if st.session_state.get("parse_error"):
+    st.error(st.session_state["parse_error"])
+
+if st.session_state.get("segments"):
+    segments = st.session_state["segments"]
+    rows = display_table(segments)
+
+    st.subheader("Besedilni pregled")
+
+    text_output = format_text(segments)
+    st.code(text_output, language=None)
+
+    st.download_button(
+        label="⬇️ Prenesi besedilo (.txt)",
+        data=text_output,
+        file_name="potovalni_nacrt.txt",
+        mime="text/plain",
+    )
+
+    st.subheader("Tabela za Loop ali e-pošto")
+    st.caption(
+        "Klikni »Kopiraj tabelo« in jo prilepi v Loop ali e-pošto. "
+        "Če se oblikovanje ne prenese, je to lahko omejitev "
+        "brskalnika ali ciljnega programa."
+    )
+
+    render_copyable_table(rows)
+
+    if not AIRLINE_DATABASE:
+        st.caption(
+            "Opomba: brezplačna baza letalskih družb trenutno ni "
+            "dosegljiva. Številke letov so še vedno prikazane."
+        )

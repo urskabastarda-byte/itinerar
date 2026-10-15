@@ -1,4 +1,3 @@
-
 import re
 import html
 import json
@@ -79,8 +78,79 @@ AIRPORTS = {
     "ATL": ("Atlanta", "America/New_York"),
     "DPS": ("Bali Denpasar", "Asia/Makassar"),
     "EZE": ("Buenos Aires Ezeiza", "America/Argentina/Buenos_Aires"),
-    "GGZ": ("Železniška postaja Gradec", "Europe/Vienna"),
+    "GGZ": ("Gradec železniška postaja", "Europe/Vienna"),
 }
+
+# Imena letalskih družb po IATA kodah.
+AIRLINES = {
+    "A3": "Aegean Airlines",
+    "AA": "American Airlines",
+    "AC": "Air Canada",
+    "AF": "Air France",
+    "AI": "Air India",
+    "AY": "Finnair",
+    "AZ": "ITA Airways",
+    "BA": "British Airways",
+    "BR": "EVA Air",
+    "CA": "Air China",
+    "CI": "China Airlines",
+    "CX": "Cathay Pacific",
+    "CZ": "China Southern Airlines",
+    "DL": "Delta Air Lines",
+    "EK": "Emirates",
+    "ET": "Ethiopian Airlines",
+    "EY": "Etihad Airways",
+    "FI": "Icelandair",
+    "FR": "Ryanair",
+    "IB": "Iberia",
+    "JL": "Japan Airlines",
+    "JU": "Air Serbia",
+    "KE": "Korean Air",
+    "KL": "KLM",
+    "KQ": "Kenya Airways",
+    "LA": "LATAM Airlines",
+    "LH": "Lufthansa",
+    "LO": "LOT Polish Airlines",
+    "LX": "SWISS",
+    "LY": "EL AL",
+    "ME": "Middle East Airlines",
+    "MH": "Malaysia Airlines",
+    "MS": "EgyptAir",
+    "NH": "ANA",
+    "NZ": "Air New Zealand",
+    "OS": "Austrian Airlines",
+    "OU": "Croatia Airlines",
+    "OZ": "Asiana Airlines",
+    "PC": "Pegasus Airlines",
+    "QF": "Qantas",
+    "QR": "Qatar Airways",
+    "RJ": "Royal Jordanian",
+    "RO": "TAROM",
+    "SA": "South African Airways",
+    "SK": "SAS",
+    "SN": "Brussels Airlines",
+    "SQ": "Singapore Airlines",
+    "SU": "Aeroflot",
+    "TG": "Thai Airways",
+    "TK": "Turkish Airlines",
+    "TP": "TAP Air Portugal",
+    "UA": "United Airlines",
+    "U2": "easyJet",
+    "UX": "Air Europa",
+    "VN": "Vietnam Airlines",
+    "VS": "Virgin Atlantic",
+    "VY": "Vueling",
+    "W6": "Wizz Air",
+    "WY": "Oman Air",
+    "ZH": "Shenzhen Airlines",
+    "ZL": "Regional Express",
+}
+
+try:
+    AIRPORT_DATABASE = airportsdata.load("IATA")
+except Exception:
+    AIRPORT_DATABASE = {}
+
 
 def airport_info(code):
     code = (code or "").strip().upper()
@@ -740,3 +810,4 @@ if st.session_state.get("segments"):
     )
 
     render_copyable_table(rows)
+

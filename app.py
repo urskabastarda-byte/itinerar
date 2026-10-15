@@ -579,50 +579,6 @@ def parse_segments(raw):
 
     return parsed
 
-
-# =========================================================
-# BESEDILNI PREGLED
-# =========================================================
-
-def format_text(segments):
-    lines = []
-
-    for segment in segments:
-        date_text = segment["date"].strftime("%d.%m.%Y")
-
-        route = (
-            f"{segment['origin_city']} ({segment['origin']}) – "
-            f"{segment['destination_city']} "
-            f"({segment['destination']})"
-        )
-
-        duration = format_duration(
-            segment["duration_minutes"]
-        )
-
-        flight_text = segment["flight"]
-
-        if segment["airline_name"]:
-            flight_text += f" – {segment['airline_name']}"
-
-        if segment["is_train"]:
-            flight_text += " (vlak)"
-
-        lines.append(
-            f"{date_text} | {flight_text} | {route} | "
-            f"{segment['departure']}–{segment['arrival']} | "
-            f"{duration}"
-        )
-
-        if segment["connected_to_next"]:
-            lines.append(
-                "  Prestop: "
-                + format_duration(segment["layover_minutes"])
-            )
-
-    return "\n".join(lines)
-
-
 # =========================================================
 # PODATKI ZA TABEL
 # =========================================================
@@ -733,13 +689,13 @@ def render_copyable_table(rows):
             PALE_YELLOW if row_index % 2 else WHITE
         )
 
-    # Rumena črta samo ob koncu sklopa povezanih letov,
-    # če naslednji let ni povezava na trenutno destinacijo.
-    if row.get("connected_to_next"):
-        row_border = ""
-    else:
-        row_border = "border-bottom: 1px solid #FBB900;"
-
+        # Rumena črta debeline 2 px samo pod segmentom,
+        # ki ima naslednji povezani segment.
+        connected_border = (
+            f"border-bottom:2px solid {GOLD};"
+            if row.get("_connected_to_next")
+            else ""
+        )
 
         html_rows.append("<tr>")
 

@@ -1,4 +1,4 @@
-
+```python
 import re
 import html
 import json
@@ -8,10 +8,6 @@ from zoneinfo import ZoneInfo
 import streamlit as st
 import airportsdata
 import streamlit.components.v1 as components
-
-import csv
-from io import StringIO
-from urllib.request import urlopen
 
 st.set_page_config(
     page_title="Amadeus – potovalni načrt",
@@ -552,45 +548,7 @@ def display_table(segments):
         })
 
     return rows
-    
-# ---------------------------------------------------------
-# BREZPLAČNA BAZA IATA-KOD LETALSKIH DRUŽB
-# Vir: https://github.com/gh2137/iata-codes
-# ---------------------------------------------------------
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def load_airline_database():
-    url = (
-        "https://raw.githubusercontent.com/"
-        "gh2137/iata-codes/main/clean/airlines.csv"
-    )
-
-    try:
-        with urlopen(url, timeout=5) as response:
-            content = response.read().decode("utf-8-sig")
-
-        reader = csv.DictReader(StringIO(content), delimiter=";")
-
-        return {
-            row["iata_code"].strip().upper():
-            row["airline_name"].strip()
-            for row in reader
-            if row.get("iata_code", "").strip()
-            and row.get("airline_name", "").strip()
-        }
-
-    except Exception:
-        # Če spletna baza ni dosegljiva, aplikacija še vedno deluje.
-        return {}
-
-
-AIRLINE_DATABASE = load_airline_database()
-
-
-def airline_name(code):
-    code = (code or "").strip().upper()
-    return AIRLINE_DATABASE.get(code, code)
-    
 
 # ---------------------------------------------------------
 # HTML TABELA – MODRO-ZLATA RAZLIČICA + ROBOTO
@@ -681,6 +639,12 @@ def render_copyable_table(rows):
                     "white-space:normal;"
                     "overflow-wrap:anywhere;"
                     "max-width:280px;"
+                )
+
+            # Odebeljena zlata spodnja črta na koncu povezane poti.
+            if row.get("_konec_povezave", False):
+                cell_style += (
+                    "border-bottom:4px solid #FBB900;"
                 )
 
             html_rows.append(
@@ -847,3 +811,4 @@ if st.session_state.get("segments"):
     )
 
     render_copyable_table(rows)
+```

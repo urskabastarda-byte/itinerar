@@ -81,7 +81,8 @@ AIRPORTS = {
     "ATL": ("Atlanta", "America/New_York"),
     "DPS": ("Bali Denpasar", "Asia/Makassar"),
     "EZE": ("Buenos Aires Ezeiza", "America/Argentina/Buenos_Aires"),
-    "GGZ": ("Gradec železniška postaja", "Europe/Vienna"),
+    "GGZ": ("Železniška postaja Gradec", "Europe/Vienna"),
+    "ZWS": ("Železniška postaja Stuttgart", "Europe/Vienna"),
 }
 
 # Imena letalskih družb po IATA kodah.

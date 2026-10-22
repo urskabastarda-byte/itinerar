@@ -83,6 +83,7 @@ AIRPORTS = {
     "EZE": ("Buenos Aires Ezeiza", "America/Argentina/Buenos_Aires"),
     "GGZ": ("Železniška postaja Gradec", "Europe/Vienna"),
     "ZWS": ("Železniška postaja Stuttgart", "Europe/Vienna"),
+    "FRATN": ("Železniška postaja Frankfurt letališče", "Europe/Vienna"),
 }
 
 # Imena letalskih družb po IATA kodah.

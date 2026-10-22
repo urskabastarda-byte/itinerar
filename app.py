@@ -86,6 +86,17 @@ AIRPORTS = {
     "FRATN": ("Železniška postaja Frankfurt letališče", "Europe/Vienna"),
 }
 
+# Kode, ki v tem izpisu označujejo železniške postaje (ne letališč).
+RAIL_STATIONS = {"GGZ", "ZWS", "FRATN"}
+
+# Frankfurt Flughafenbahnhof (FRATN) ist für prestope na istem kraju
+# povezan s frankfurtskim letališčem (FRA).
+CONNECTION_ALIASES = {"FRATN": "FRA"}
+
+def connection_point(code):
+    code = (code or "").strip().upper()
+    return CONNECTION_ALIASES.get(code, code)
+
 # Imena letalskih družb po IATA kodah.
 AIRLINES = {
     "A3": "Aegean Airlines",
@@ -268,32 +279,20 @@ def time_difference_minutes(
 # ---------------------------------------------------------
 
 def parse_amadeus_line(line):
-    """
-    Podpira klasične zapise in zapise z ločenimi kodami letališč,
-    terminali in oznakami operativnega prevoznika.
-
-    Primeri:
-    1  OS3580 S 08NOV 7 GGZVIE HK1 0600 0857 TRN E 1
-    1  *OS3580 S 08NOV GGZ VIE 3 0600 0857 E1/TRN
-    1   IB 684 M 04DEC VCE MAD 4 0620 0900 E0/320
-    2VY IB5380 Z 09DEC BCN 1 VCE 0720 0910 E0/321
-    """
-    line = line.strip()
-
+    """Razčleni Amadeusove letalske in železniške segmente."""
+    line = (line or "").strip()
     if not line:
         return None
 
-    # Oznaka TRN je lahko na koncu vrstice (npr. E1/TRN).
-    is_train = bool(re.search(r"\bTRN\b", line, re.IGNORECASE))
-
-    # Odstranimo začetno številko segmenta, ne pa kode leta.
+    # Odstranimo številko segmenta, npr. "1   LH1257" ali "2BT*LX1165".
     line = re.sub(r"^\d+\s*", "", line)
 
-    # Odstranimo začetno zvezdico, ki se pojavlja v nekaterih izpisih.
+    # Odstranimo morebitno oznako operativnega prevoznika:
+    # OU:LH5989, BT*LX1165, L*LX1512; nato še samostojno začetno zvezdico.
+    line = re.sub(r"^[A-Z0-9]{1,2}[:*]\s*", "", line, flags=re.IGNORECASE)
     line = re.sub(r"^\*\s*", "", line)
 
-    # Pri obliki "VY IB5380 ..." je IB5380 dejanska številka leta.
-    # Začetna koda operativnega prevoznika ni del številke leta.
+    # Oblika "VY IB5380 ...": IB5380 je dejanska številka leta.
     line = re.sub(
         r"^[A-Z0-9]{2}\s+(?=[A-Z]{2}\s*\d)",
         "",
@@ -306,7 +305,6 @@ def parse_amadeus_line(line):
         line,
         re.IGNORECASE,
     )
-
     if not date_match:
         return None
 
@@ -314,58 +312,54 @@ def parse_amadeus_line(line):
     prefix = line[:date_match.start()].strip()
     remainder = line[date_match.end():].strip()
 
-    # Letalska številka in razred rezervacije pred datumom.
-    flight_matches = list(
-        re.finditer(
-            r"(?P<flight>[A-Z0-9]{2}\s*[A-Z0-9]{1,4})\s+"
-            r"(?P<class>[A-Z])(?=\s|$)",
-            prefix,
-            re.IGNORECASE,
-        )
-    )
-
+    flight_matches = list(re.finditer(
+        r"(?P<flight>[A-Z0-9]{2}\s*[A-Z0-9]{1,4})\s+"
+        r"(?P<class>[A-Z])(?=\s|$)",
+        prefix,
+        re.IGNORECASE,
+    ))
     if not flight_matches:
         return None
 
-    flight = re.sub(
-        r"\s+",
-        "",
-        flight_matches[-1].group("flight"),
-    ).upper()
+    flight = re.sub(r"\s+", "", flight_matches[-1].group("flight")).upper()
 
-    # Čase iščemo za datumom, da številk terminalov ne zamenjamo za čase.
-    times = list(
-        re.finditer(r"(?<!\d)(\d{4})(?!\d)", remainder)
-    )
-
+    # Čase iščemo šele za datumom, da terminalov ne zamenjamo za čase.
+    times = list(re.finditer(r"(?<!\d)(\d{4})(?!\d)", remainder))
     if len(times) < 2:
         return None
 
     route_text = remainder[:times[0].start()].strip()
 
-    # Najprej poiščemo samostojne kode letališč.
+    # Letališča so navadno 3-črkovne kode, železniške postaje pa so lahko
+    # daljše (npr. FRATN). Terminali in drugi podatki se ne ujemajo s tem vzorcem.
     airport_codes = re.findall(
-        r"(?<![A-Z])([A-Z]{3})(?![A-Z])",
+        r"(?<![A-Z])([A-Z]{3,5})(?![A-Z])",
         route_text,
         re.IGNORECASE,
     )
 
     if len(airport_codes) >= 2:
-        origin = airport_codes[0].upper()
-        destination = airport_codes[1].upper()
+        origin, destination = airport_codes[0].upper(), airport_codes[1].upper()
     else:
-        # Klasični zapis brez presledkov, npr. LJUAMS.
-        joined_route = re.search(
-            r"\b([A-Z]{6})\b",
-            route_text,
-            re.IGNORECASE,
-        )
-
-        if not joined_route:
+        # Kompaktne relacije, npr. LJUAMS ali GGZVIE, brez presledka.
+        compact = re.search(r"(?<![A-Z])([A-Z]{6,8})(?![A-Z])", route_text, re.IGNORECASE)
+        if not compact:
+            return None
+        route = compact.group(1).upper()
+        if len(route) == 6:
+            origin, destination = route[:3], route[3:]
+        elif len(route) == 8 and route[:5] in RAIL_STATIONS:
+            origin, destination = route[:5], route[5:]
+        elif len(route) == 8 and route[3:] in RAIL_STATIONS:
+            origin, destination = route[:3], route[3:]
+        else:
             return None
 
-        route = joined_route.group(1).upper()
-        origin, destination = route[:3], route[3:]
+    is_train = bool(
+        re.search(r"\bTRN\b", line, re.IGNORECASE)
+        or origin in RAIL_STATIONS
+        or destination in RAIL_STATIONS
+    )
 
     return {
         "flight": flight,
@@ -494,10 +488,11 @@ def parse_segments(raw):
 
         next_segment = parsed[i + 1]
 
-        if segment["destination"] != next_segment["origin"]:
+        if connection_point(segment["destination"]) != connection_point(next_segment["origin"]):
             continue
 
-        _, timezone_name = airport_info(segment["destination"])
+        # Pri letališču/železniški postaji uporabimo časovni pas istega kraja.
+        _, timezone_name = airport_info(connection_point(segment["destination"]))
 
         try:
             arrival_dt = datetime.strptime(
@@ -619,14 +614,14 @@ def render_copyable_table(rows):
         "font-weight:700;"
         "text-align:left;"
         "padding:9px 10px;"
-        "border:1px solid #FBB900;"
+        "border:none;"
         "border-bottom:4px solid #FBB900;"
         "white-space:nowrap;"
     )
 
     td_base = (
         "padding:8px 10px;"
-        "border:1px solid #FBB900;"
+        "border:none;"
         "vertical-align:top;"
         "font-family:Roboto,Arial,Helvetica,sans-serif;"
         "font-size:13px;"
@@ -679,9 +674,9 @@ def render_copyable_table(rows):
                     "max-width:280px;"
                 )
 
-            # Na koncu nepovezanega sklopa je spodnja črta le malenkost debelejša.
+            # Rumena črta je samo med sklopi, ne pod zadnjo vrstico.
             if row.get("_konec_povezave", False):
-                cell_style += "border-bottom:2px solid #FBB900;"
+                cell_style += "border-bottom:1px solid #FBB900;"
 
             html_rows.append(
                 f'<td style="{cell_style}">{value}</td>'
@@ -841,8 +836,8 @@ if st.session_state.get("segments"):
 
     st.caption(
         "Klikni »Kopiraj tabelo« in jo prilepi v Loop. "
-        "Spodnja črta glave je debelejša; malenkost debelejša rumena črta "
-        "med vrsticami označuje začetek novega sklopa letov. "
+        "Rumena črta pod glavo označuje naslove, tanka rumena črta med "
+        "sklopi pa ločuje nepovezane segmente. Pod zadnjo vrstico je ni. "
         "Če se oblikovanje ne prenese, je to lahko omejitev "
         "brskalnika ali ciljnega programa."
     )

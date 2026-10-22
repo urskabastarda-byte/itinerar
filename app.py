@@ -1,6 +1,9 @@
 import re
 import html
 import json
+import csv
+import io
+from urllib.request import urlopen
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
@@ -146,6 +149,26 @@ AIRLINES = {
     "ZL": "Regional Express",
 }
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_airline_database():
+    """Naloži brezplačen seznam letalskih družb; ob napaki uporabi lokalni seznam."""
+    airlines = dict(AIRLINES)
+    url = "https://raw.githubusercontent.com/gh2137/iata-codes/main/clean/airlines.csv"
+    try:
+        with urlopen(url, timeout=4) as response:
+            content = response.read().decode("utf-8-sig")
+        reader = csv.DictReader(io.StringIO(content), delimiter=";")
+        for row in reader:
+            code = (row.get("iata_code") or "").strip().upper()
+            name = (row.get("airline_name") or "").strip()
+            if code and name:
+                airlines[code] = name
+    except Exception:
+        pass
+    return airlines
+
+AIRLINE_DATABASE = load_airline_database()
+
 try:
     AIRPORT_DATABASE = airportsdata.load("IATA")
 except Exception:
@@ -171,7 +194,7 @@ def airport_info(code):
 def airline_name(flight):
     """Vrne polno ime prevoznika na podlagi kode na začetku številke leta."""
     code = flight[:2].upper()
-    return AIRLINES.get(code, code)
+    return AIRLINE_DATABASE.get(code, AIRLINES.get(code, code))
 
 
 def parse_date(token, year):
@@ -257,6 +280,9 @@ def parse_amadeus_line(line):
 
     if not line:
         return None
+
+    # Oznaka TRN je lahko na koncu vrstice (npr. E1/TRN).
+    is_train = bool(re.search(r"\bTRN\b", line, re.IGNORECASE))
 
     # Odstranimo začetno številko segmenta, ne pa kode leta.
     line = re.sub(r"^\d+\s*", "", line)
@@ -346,6 +372,7 @@ def parse_amadeus_line(line):
         "destination": destination,
         "departure_time": times[0].group(1),
         "arrival_time": times[1].group(1),
+        "is_train": is_train,
     }
 
 
@@ -445,6 +472,7 @@ def parse_segments(raw):
             "date": flight_date,
             "flight": item["flight"],
             "airline_name": airline_name(item["flight"]),
+            "is_train": item.get("is_train", False),
             "origin": origin,
             "destination": destination,
             "origin_city": origin_city,
@@ -519,9 +547,11 @@ def format_text(segments):
 
         duration = format_duration(segment["duration_minutes"])
 
+        train_label = " (vlak)" if segment.get("is_train") else ""
+
         lines.append(
             f"{date_text} | {segment['airline_name']} "
-            f"{segment['flight']} | {route} | "
+            f"{segment['flight']}{train_label} | {route} | "
             f"{segment['departure']}–{segment['arrival']} | {duration}"
         )
 
@@ -534,7 +564,10 @@ def display_table(segments):
     for segment in segments:
         rows.append({
             "Datum": segment["date"].strftime("%d.%m.%Y"),
-            "Let": f"{segment['airline_name']} {segment['flight']}",
+            "Let": (
+                f"{segment['airline_name']} {segment['flight']}"
+                + (" (vlak)" if segment.get("is_train") else "")
+            ),
             "Relacija": (
                 f"{segment['origin_city']} ({segment['origin']}) – "
                 f"{segment['destination_city']} ({segment['destination']})"
@@ -580,14 +613,14 @@ def render_copyable_table(rows):
         "font-weight:700;"
         "text-align:left;"
         "padding:9px 10px;"
-        "border:1px solid #D5DEE7;"
-        "border-bottom:4px solid #FBB900;"
+        "border:1px solid #FBB900;"
+        "border-bottom:1px solid #FBB900;"
         "white-space:nowrap;"
     )
 
     td_base = (
         "padding:8px 10px;"
-        "border:1px solid #D5DEE7;"
+        "border:1px solid #FBB900;"
         "vertical-align:top;"
         "font-family:Roboto,Arial,Helvetica,sans-serif;"
         "font-size:13px;"
@@ -640,11 +673,9 @@ def render_copyable_table(rows):
                     "max-width:280px;"
                 )
 
-            # Odebeljena zlata spodnja črta na koncu povezane poti.
+            # Na koncu nepovezanega sklopa je spodnja črta le malenkost debelejša.
             if row.get("_konec_povezave", False):
-                cell_style += (
-                    "border-bottom:1px solid #FBB900;"
-                )
+                cell_style += "border-bottom:2px solid #FBB900;"
 
             html_rows.append(
                 f'<td style="{cell_style}">{value}</td>'
@@ -804,10 +835,9 @@ if st.session_state.get("segments"):
 
     st.caption(
         "Klikni »Kopiraj tabelo« in jo prilepi v Loop. "
-        "Odebeljena zlata črta označuje konec povezane poti. "
+        "Tanka rumena črta obdaja tabelo; malenkost debelejša označuje konec sklopa letov. "
         "Če se oblikovanje ne prenese, je to lahko omejitev "
         "brskalnika ali ciljnega programa."
     )
 
     render_copyable_table(rows)
-

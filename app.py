@@ -520,11 +520,15 @@ def parse_segments(raw):
         except Exception:
             segment["layover_minutes"] = None
 
-    # Zlata črta pod zadnjim letom povezane poti.
+    # Odebeljena ločilna črta je samo med sklopi, ne pod zadnjo vrstico.
+    # Sklop se nadaljuje samo, če naslednji let odleti z istega letališča
+    # in ima veljaven prestop (0–18 ur). Sama enaka koda letališča ni dovolj:
+    # večdnevni presledek, kot TLV 15. decembra -> TLV 18. decembra,
+    # pomeni nov sklop.
     for i, segment in enumerate(parsed):
         segment["end_of_connection"] = (
-            i == len(parsed) - 1
-            or segment["destination"] != parsed[i + 1]["origin"]
+            i < len(parsed) - 1
+            and segment["layover_minutes"] is None
         )
 
     return parsed
@@ -614,7 +618,7 @@ def render_copyable_table(rows):
         "text-align:left;"
         "padding:9px 10px;"
         "border:1px solid #FBB900;"
-        "border-bottom:1px solid #FBB900;"
+        "border-bottom:4px solid #FBB900;"
         "white-space:nowrap;"
     )
 
@@ -835,7 +839,8 @@ if st.session_state.get("segments"):
 
     st.caption(
         "Klikni »Kopiraj tabelo« in jo prilepi v Loop. "
-        "Tanka rumena črta obdaja tabelo; malenkost debelejša označuje konec sklopa letov. "
+        "Spodnja črta glave je debelejša; malenkost debelejša rumena črta "
+        "med vrsticami označuje začetek novega sklopa letov. "
         "Če se oblikovanje ne prenese, je to lahko omejitev "
         "brskalnika ali ciljnega programa."
     )

@@ -819,6 +819,18 @@ if st.session_state.get("segments"):
     segments = st.session_state["segments"]
     rows = display_table(segments)
 
+    st.subheader("Tabela za Loop ali e-pošto")
+
+    st.caption(
+        "Klikni »Kopiraj tabelo« in jo prilepi v Loop. "
+        "Rumena črta pod glavo označuje naslove, tanka rumena črta med "
+        "sklopi pa ločuje nepovezane segmente. Pod zadnjo vrstico je ni. "
+        "Če se oblikovanje ne prenese, je to lahko omejitev "
+        "brskalnika ali ciljnega programa."
+    )
+
+    render_copyable_table(rows)
+
     st.subheader("Besedilni pregled")
 
     text_output = format_text(segments)
@@ -831,15 +843,3 @@ if st.session_state.get("segments"):
         file_name="potovalni_nacrt.txt",
         mime="text/plain",
     )
-
-    st.subheader("Tabela za Loop ali e-pošto")
-
-    st.caption(
-        "Klikni »Kopiraj tabelo« in jo prilepi v Loop. "
-        "Rumena črta pod glavo označuje naslove, tanka rumena črta med "
-        "sklopi pa ločuje nepovezane segmente. Pod zadnjo vrstico je ni. "
-        "Če se oblikovanje ne prenese, je to lahko omejitev "
-        "brskalnika ali ciljnega programa."
-    )
-
-    render_copyable_table(rows)

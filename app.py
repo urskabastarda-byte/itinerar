@@ -1,9 +1,12 @@
 
 import re
+import csv
+import io
 import html
 import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
+from urllib.request import urlopen
 
 import streamlit as st
 import airportsdata
@@ -126,6 +129,102 @@ def airport_info(code):
     return city, timezone_name
 
 
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_airline_database():
+    """
+    Naloži javni seznam letalskih družb z OpenFlights.
+    Če internetni vir ni dosegljiv, aplikacija še vedno deluje z našim seznamom.
+    """
+    url = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat"
+
+    try:
+        with urlopen(url, timeout=5) as response:
+            content = response.read().decode("utf-8", errors="replace")
+
+        airlines = {}
+        reader = csv.reader(io.StringIO(content))
+        for row in reader:
+            # OpenFlights format: ID, Name, Alias, IATA, ICAO, Callsign, Country, Active
+            if len(row) < 8:
+                continue
+
+            code = row[3].strip().upper()
+            name = row[1].strip()
+
+            if code and code != r"\\N" and name and name != r"\\N":
+                # Prva najdena veljavna vrednost za kodo ostane v slovarju.
+                airlines.setdefault(code, name)
+
+        return airlines
+    except Exception:
+        return {}
+
+
+# Naša imena imajo vedno prednost pred imeni iz spletne baze.
+# Seznam lahko kadarkoli razširimo z dodatnimi kodami.
+AIRLINE_NAMES = {
+    "KL": "KLM",
+    "AF": "Air France",
+    "LH": "Lufthansa",
+    "AZ": "ITA Airways",
+    "BA": "British Airways",
+    "IB": "Iberia",
+    "LX": "SWISS",
+    "OS": "Austrian Airlines",
+    "SN": "Brussels Airlines",
+    "TK": "Turkish Airlines",
+    "QR": "Qatar Airways",
+    "EK": "Emirates",
+    "EY": "Etihad Airways",
+    "LO": "LOT Polish Airlines",
+    "SK": "SAS",
+    "AY": "Finnair",
+    "TP": "TAP Air Portugal",
+    "UA": "United Airlines",
+    "AA": "American Airlines",
+    "DL": "Delta Air Lines",
+    "AC": "Air Canada",
+    "QF": "Qantas",
+    "SQ": "Singapore Airlines",
+    "CX": "Cathay Pacific",
+    "NH": "ANA",
+    "JL": "Japan Airlines",
+    "CA": "Air China",
+    "MU": "China Eastern Airlines",
+    "CZ": "China Southern Airlines",
+    "TG": "Thai Airways",
+    "AI": "Air India",
+    "ET": "Ethiopian Airlines",
+    "MS": "Egyptair",
+    "AT": "Royal Air Maroc",
+    "RJ": "Royal Jordanian",
+    "JU": "Air Serbia",
+    "OU": "Croatia Airlines",
+    "JP": "Adria Airways",
+    "W6": "Wizz Air",
+    "FR": "Ryanair",
+    "U2": "easyJet",
+    "VY": "Vueling",
+    "PC": "Pegasus Airlines",
+    "A3": "Aegean Airlines",
+    "FZ": "flydubai",
+    "WY": "Oman Air",
+    "GF": "Gulf Air",
+    "ME": "Middle East Airlines",
+}
+
+
+AIRLINE_DATABASE = load_airline_database()
+
+
+def airline_name(code):
+    """Naše ime → ime iz spletne baze → sama koda kot varnostna rezerva."""
+    code = (code or "").strip().upper()
+    if code in AIRLINE_NAMES:
+        return AIRLINE_NAMES[code]
+    return AIRLINE_DATABASE.get(code) or code
+
+
 def parse_date(token, year):
     """Prebere datum v obliki 24SEP, 7OCT itd."""
     token = token.upper().strip()
@@ -199,68 +298,87 @@ def time_difference_minutes(
 # ---------------------------------------------------------
 
 def parse_segments(raw):
-    """
-    Podpira običajne oblike Amadeus segmentov, npr.:
-
-    2  KL1988 L 24SEP 4 LJUAMS HK1          0600 0755   *1A/E*
-    3  KL 611 N 24SEP 4 AMSORD HK1       5  1245 1415   *1A/E*
-    2  AZ1358 Y 31OCT 6 TRSFCO HK1 1115 1225
-    2  LH 123 C 24SEP 4 LJU FRA HK1 0600 0715
-    """
-
-    raw_lines = [
-        line.strip()
-        for line in raw.splitlines()
-        if line.strip()
-    ]
-
+    """Prepozna standardne in razširjene Amadeus vrstice segmentov."""
+    raw_lines = [line.strip() for line in raw.splitlines() if line.strip()]
     parsed = []
 
-    # Namesto strogega preverjanja celotne vrstice najprej
-    # prepoznamo osnovne podatke segmenta. Za časi lahko
-    # sledijo še dodatne oznake, ki jih ignoriramo.
-    pattern = re.compile(
-        r"^\s*\d+\s+"
+    # Segmentna glava: številka segmenta je lahko prisotna ali odsotna;
+    # številka leta je lahko zapisana kot AZ1358 ali AZ  60.
+    header_pattern = re.compile(
+        r"^\s*(?:\d+\s+)?"
         r"(?P<airline>[A-Z0-9]{2})\s*"
-        r"(?P<flight>[A-Z0-9]{1,4})\s+"
+        r"(?P<flight>\d{1,4})\s+"
         r"(?P<class>[A-Z])\s+"
         r"(?P<date>\d{1,2}[A-Z]{3})\s+"
         r"(?:(?P<dow>\d)\s+)?"
-        r"(?P<route>[A-Z]{3}\s*[A-Z]{3})\s+"
-        r"(?P<status>[A-Z]{2}\d?)\b"
-        r"(?P<rest>.*)$",
+        r"(?P<route_rest>.*)$",
+        re.IGNORECASE,
+    )
+
+    # Letališči sta lahko zapisani skupaj (LJUAMS) ali ločeno (FCO MAD),
+    # za njima pa se lahko pojavijo številke terminalov (npr. FCO 1 MAD 2).
+    spaced_route_pattern = re.compile(
+        r"^\s*(?P<origin>[A-Z]{3})\s+(?:\d+\s+)?"
+        r"(?P<destination>[A-Z]{3})(?:\s+\d+)?\s+(?P<rest>.*)$",
+        re.IGNORECASE,
+    )
+    compact_route_pattern = re.compile(
+        r"^\s*(?P<route>[A-Z]{6})(?P<rest>.*)$",
         re.IGNORECASE,
     )
 
     matched_lines = []
-
     for line in raw_lines:
-        match = pattern.search(line)
-
-        if not match:
+        header = header_pattern.match(line)
+        if not header:
             continue
 
-        # Po statusu rezervacije poiščemo prva dva štirimestna
-        # zapisa časa, ne glede na dodatne številke ali oznake.
-        times = re.findall(
-            r"(?<!\d)(\d{4})(?!\d)",
-            match.group("rest"),
-        )
+        route_rest = header.group("route_rest")
+        route_match = spaced_route_pattern.match(route_rest)
+        if route_match:
+            origin = route_match.group("origin").upper()
+            destination = route_match.group("destination").upper()
+            rest = route_match.group("rest")
+        else:
+            route_match = compact_route_pattern.match(route_rest)
+            if route_match:
+                route = route_match.group("route").upper()
+                origin, destination = route[:3], route[3:]
+                rest = route_match.group("rest")
+                # Kompaktna relacija lahko vsebuje terminal za ciljnim letališčem.
+                rest = re.sub(r"^\s+\d+\b", "", rest, count=1)
+            else:
+                # V nekaterih kopiranih prikazih je zadnji cilj izpuščen.
+                # Cilj dopolnimo samo, če gre očitno za povratni let:
+                # trenutni odhod = prejšnji cilj, cilj = prvi odhod.
+                one_airport = re.match(
+                    r"^\s*(?P<origin>[A-Z]{3})\s+(?P<rest>.*)$",
+                    route_rest,
+                    re.IGNORECASE,
+                )
+                if not one_airport or not matched_lines:
+                    continue
+                origin = one_airport.group("origin").upper()
+                rest = one_airport.group("rest")
+                first_origin = matched_lines[0]["origin"]
+                previous_destination = matched_lines[-1]["destination"]
+                if origin != previous_destination or origin == first_origin:
+                    continue
+                destination = first_origin
 
+        # Status (npr. HK1) ni obvezen v vseh Amadeus prikazih.
+        # Vzamemo prva dva časovna zapisa, ki se pojavita za relacijo.
+        times = re.findall(r"(?<!\d)(\d{4})(?!\d)", rest)
         if len(times) < 2:
             continue
 
-        route = re.sub(r"\s+", "", match.group("route")).upper()
-
-        if len(route) != 6:
-            continue
-
         matched_lines.append({
-            "airline": match.group("airline").upper(),
-            "flight_number": match.group("flight").upper(),
-            "date_token": match.group("date").upper(),
-            "origin": route[:3],
-            "destination": route[3:],
+            "airline": header.group("airline").upper(),
+            "airline_name": airline_name(header.group("airline")),
+            "flight_number": header.group("flight").upper(),
+            "date_token": header.group("date").upper(),
+            "origin": origin,
+            "destination": destination,
             "departure_time": times[0],
             "arrival_time": times[1],
         })
@@ -342,7 +460,7 @@ def parse_segments(raw):
         parsed.append({
             "date": flight_date,
             "flight": (
-                f"{item['airline']}{item['flight_number']}"
+                f"{item['airline_name']}{item['flight_number']}"
             ),
             "origin": origin,
             "destination": destination,

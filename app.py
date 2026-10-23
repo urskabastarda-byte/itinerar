@@ -625,9 +625,10 @@ def render_copyable_table(rows):
 
         # Tanka rumena ločnica samo pred naslednjim nepovezanim letom.
         # Zadnji let nikoli ne dobi spodnje rumene črte.
+        layover_value = str(row.get("Čas prestopa", "")).strip()
         ends_connection = (
             row_index < len(rows) - 1
-            and not str(row.get("Čas prestopa", "")).strip()
+            and layover_value in {"", "—", "–", "-"}
         )
 
         for header in headers:

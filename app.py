@@ -583,19 +583,19 @@ def render_copyable_table(rows):
     )
 
     th_style = (
-        "background-color:#23476A;"
+        "background-color:#004899;"
         "color:#FFFFFF;"
         "font-weight:700;"
         "text-align:left;"
         "padding:7px 9px;"
-        "border:1px solid #D5DEE7;"
-        "border-bottom:3px solid #E5B83D;"
+        "border:0;"
+        "border-bottom:4px solid #FBB900;"
         "white-space:nowrap;"
     )
 
     td_base = (
         "padding:7px 9px;"
-        "border:1px solid #D5DEE7;"
+        "border:0;"
         "vertical-align:top;"
     )
 
@@ -620,7 +620,7 @@ def render_copyable_table(rows):
     html_rows.append("</tr></thead><tbody>")
 
     for row_index, row in enumerate(rows):
-        background = "#F0F6FB" if row_index % 2 else "#FFFFFF"
+        background = "#FFF9E9" if row_index % 2 else "#FFFFFF"
         html_rows.append("<tr>")
 
         # Tanka rumena ločnica samo pred naslednjim nepovezanim letom.
@@ -639,7 +639,7 @@ def render_copyable_table(rows):
             )
 
             if ends_connection:
-                cell_style += "border-bottom:1px solid #E5B83D;"
+                cell_style += "border-bottom:1px solid #FBB900;"
 
             if header in nowrap_columns:
                 cell_style += "white-space:nowrap;"

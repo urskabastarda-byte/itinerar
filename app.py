@@ -589,6 +589,7 @@ def render_copyable_table(rows):
         "text-align:left;"
         "padding:7px 9px;"
         "border:1px solid #D5DEE7;"
+        "border-bottom:3px solid #E5B83D;"
         "white-space:nowrap;"
     )
 
@@ -622,6 +623,13 @@ def render_copyable_table(rows):
         background = "#F0F6FB" if row_index % 2 else "#FFFFFF"
         html_rows.append("<tr>")
 
+        # Tanka rumena ločnica samo pred naslednjim nepovezanim letom.
+        # Zadnji let nikoli ne dobi spodnje rumene črte.
+        ends_connection = (
+            row_index < len(rows) - 1
+            and not str(row.get("Čas prestopa", "")).strip()
+        )
+
         for header in headers:
             value = html.escape(str(row.get(header, "")))
 
@@ -629,6 +637,9 @@ def render_copyable_table(rows):
                 td_base
                 + f"background-color:{background};"
             )
+
+            if ends_connection:
+                cell_style += "border-bottom:1px solid #E5B83D;"
 
             if header in nowrap_columns:
                 cell_style += "white-space:nowrap;"

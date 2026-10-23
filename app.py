@@ -1,15 +1,17 @@
+
 import re
-import html
-import json
 import csv
 import io
-from urllib.request import urlopen
+import html
+import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
+from urllib.request import urlopen
 
 import streamlit as st
 import airportsdata
 import streamlit.components.v1 as components
+
 
 st.set_page_config(
     page_title="Amadeus – potovalni načrt",
@@ -22,8 +24,10 @@ st.caption(
     "Prilepi letalske segmente iz Amadeusa in ustvari pregledno tabelo za stranko."
 )
 
+
 # ---------------------------------------------------------
 # LETALIŠČA
+# Ključ: IATA koda; vrednost: slovensko ime mesta in časovni pas
 # ---------------------------------------------------------
 
 AIRPORTS = {
@@ -76,126 +80,47 @@ AIRPORTS = {
     "GRU": ("São Paulo", "America/Sao_Paulo"),
     "CPT": ("Cape Town", "Africa/Johannesburg"),
     "JNB": ("Johannesburg", "Africa/Johannesburg"),
-    "MEX": ("Mexico City", "America/Mexico_City"),
-    "GDL": ("Guadalajara", "America/Mexico_City"),
-    "ATL": ("Atlanta", "America/New_York"),
-    "DPS": ("Bali Denpasar", "Asia/Makassar"),
-    "EZE": ("Buenos Aires Ezeiza", "America/Argentina/Buenos_Aires"),
-    "GGZ": ("Železniška postaja Gradec", "Europe/Vienna"),
-    "ZWS": ("Železniška postaja Stuttgart", "Europe/Vienna"),
-    "FRATN": ("Železniška postaja Frankfurt letališče", "Europe/Vienna"),
+    "MEX": ("Mexico City", "America/Mexico City"),
+    "GDL": ("Guadalajara", "America/Guadalajara"),
+    "ATL": ("Atlanta", "America/Atlanta")
 }
 
-# Kode, ki v tem izpisu označujejo železniške postaje (ne letališč).
-RAIL_STATIONS = {"GGZ", "ZWS", "FRATN"}
 
-# Frankfurt Flughafenbahnhof (FRATN) ist für prestope na istem kraju
-# povezan s frankfurtskim letališčem (FRA).
-CONNECTION_ALIASES = {"FRATN": "FRA"}
+# ---------------------------------------------------------
+# POMOŽNE FUNKCIJE
+# ---------------------------------------------------------
 
-def connection_point(code):
-    code = (code or "").strip().upper()
-    return CONNECTION_ALIASES.get(code, code)
-
-# Imena letalskih družb po IATA kodah.
-AIRLINES = {
-    "A3": "Aegean Airlines",
-    "AA": "American Airlines",
-    "AC": "Air Canada",
-    "AF": "Air France",
-    "AI": "Air India",
-    "AY": "Finnair",
-    "AZ": "ITA Airways",
-    "BA": "British Airways",
-    "BR": "EVA Air",
-    "CA": "Air China",
-    "CI": "China Airlines",
-    "CX": "Cathay Pacific",
-    "CZ": "China Southern Airlines",
-    "DL": "Delta Air Lines",
-    "EK": "Emirates",
-    "ET": "Ethiopian Airlines",
-    "EY": "Etihad Airways",
-    "FI": "Icelandair",
-    "FR": "Ryanair",
-    "IB": "Iberia",
-    "JL": "Japan Airlines",
-    "JU": "Air Serbia",
-    "KE": "Korean Air",
-    "KL": "KLM",
-    "KQ": "Kenya Airways",
-    "LA": "LATAM Airlines",
-    "LH": "Lufthansa",
-    "LO": "LOT Polish Airlines",
-    "LX": "SWISS",
-    "LY": "EL AL",
-    "ME": "Middle East Airlines",
-    "MH": "Malaysia Airlines",
-    "MS": "EgyptAir",
-    "NH": "ANA",
-    "NZ": "Air New Zealand",
-    "OS": "Austrian Airlines",
-    "OU": "Croatia Airlines",
-    "OZ": "Asiana Airlines",
-    "PC": "Pegasus Airlines",
-    "QF": "Qantas",
-    "QR": "Qatar Airways",
-    "RJ": "Royal Jordanian",
-    "RO": "TAROM",
-    "SA": "South African Airways",
-    "SK": "SAS",
-    "SN": "Brussels Airlines",
-    "SQ": "Singapore Airlines",
-    "SU": "Aeroflot",
-    "TG": "Thai Airways",
-    "TK": "Turkish Airlines",
-    "TP": "TAP Air Portugal",
-    "UA": "United Airlines",
-    "U2": "easyJet",
-    "UX": "Air Europa",
-    "VN": "Vietnam Airlines",
-    "VS": "Virgin Atlantic",
-    "VY": "Vueling",
-    "W6": "Wizz Air",
-    "WY": "Oman Air",
-    "ZH": "Shenzhen Airlines",
-    "ZL": "Regional Express",
-}
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def load_airline_database():
-    """Naloži brezplačen seznam letalskih družb; ob napaki uporabi lokalni seznam."""
-    airlines = dict(AIRLINES)
-    url = "https://raw.githubusercontent.com/gh2137/iata-codes/main/clean/airlines.csv"
-    try:
-        with urlopen(url, timeout=4) as response:
-            content = response.read().decode("utf-8-sig")
-        reader = csv.DictReader(io.StringIO(content), delimiter=";")
-        for row in reader:
-            code = (row.get("iata_code") or "").strip().upper()
-            name = (row.get("airline_name") or "").strip()
-            if code and name:
-                airlines[code] = name
-    except Exception:
-        pass
-    return airlines
-
-AIRLINE_DATABASE = load_airline_database()
-
+# Naložimo celotno bazo IATA kod iz knjižnice airportsdata.
+# Ključi slovarja so trimestne IATA kode.
 try:
     AIRPORT_DATABASE = airportsdata.load("IATA")
 except Exception:
+    # Če se knjižnica ali njeni podatki iz kakršnegakoli razloga ne naložijo,
+    # aplikacija še vedno lahko uporabi spodnji lasten slovar.
     AIRPORT_DATABASE = {}
 
 
 def airport_info(code):
     code = (code or "").strip().upper()
+
+    # Najprej poiščemo podatke v obsežni bazi.
     airport = AIRPORT_DATABASE.get(code, {})
+
+    # Nato ohranimo naša ročno določena imena, ki imajo prednost
+    # pred privzetimi angleškimi imeni iz baze.
     local_name, fallback_timezone = AIRPORTS.get(code, ("", "UTC"))
 
-    city = local_name or airport.get("city") or airport.get("name") or code
+    city = (
+        local_name
+        or airport.get("city")
+        or airport.get("name")
+        or code
+    )
+
     timezone_name = airport.get("tz") or fallback_timezone or "UTC"
 
+    # Preverimo, ali je časovni pas veljaven. Napačen ali manjkajoč podatek
+    # ne sme povzročiti sesutja aplikacije.
     try:
         ZoneInfo(timezone_name)
     except Exception:
@@ -204,20 +129,112 @@ def airport_info(code):
     return city, timezone_name
 
 
-def airline_name(flight):
-    """Vrne polno ime prevoznika na podlagi kode na začetku številke leta."""
-    code = flight[:2].upper()
-    return AIRLINE_DATABASE.get(code, AIRLINES.get(code, code))
+@st.cache_data(ttl=86400, show_spinner=False)
+def load_airline_database():
+    """
+    Naloži javni seznam letalskih družb z OpenFlights.
+    Če internetni vir ni dosegljiv, aplikacija še vedno deluje z našim seznamom.
+    """
+    url = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat"
+
+    try:
+        with urlopen(url, timeout=5) as response:
+            content = response.read().decode("utf-8", errors="replace")
+
+        airlines = {}
+        reader = csv.reader(io.StringIO(content))
+        for row in reader:
+            # OpenFlights format: ID, Name, Alias, IATA, ICAO, Callsign, Country, Active
+            if len(row) < 8:
+                continue
+
+            code = row[3].strip().upper()
+            name = row[1].strip()
+
+            if code and code != r"\\N" and name and name != r"\\N":
+                # Prva najdena veljavna vrednost za kodo ostane v slovarju.
+                airlines.setdefault(code, name)
+
+        return airlines
+    except Exception:
+        return {}
+
+
+# Naša imena imajo vedno prednost pred imeni iz spletne baze.
+# Seznam lahko kadarkoli razširimo z dodatnimi kodami.
+AIRLINE_NAMES = {
+    "KL": "KLM",
+    "AF": "Air France",
+    "LH": "Lufthansa",
+    "AZ": "ITA Airways",
+    "BA": "British Airways",
+    "IB": "Iberia",
+    "LX": "SWISS",
+    "OS": "Austrian Airlines",
+    "SN": "Brussels Airlines",
+    "TK": "Turkish Airlines",
+    "QR": "Qatar Airways",
+    "EK": "Emirates",
+    "EY": "Etihad Airways",
+    "LO": "LOT Polish Airlines",
+    "SK": "SAS",
+    "AY": "Finnair",
+    "TP": "TAP Air Portugal",
+    "UA": "United Airlines",
+    "AA": "American Airlines",
+    "DL": "Delta Air Lines",
+    "AC": "Air Canada",
+    "QF": "Qantas",
+    "SQ": "Singapore Airlines",
+    "CX": "Cathay Pacific",
+    "NH": "ANA",
+    "JL": "Japan Airlines",
+    "CA": "Air China",
+    "MU": "China Eastern Airlines",
+    "CZ": "China Southern Airlines",
+    "TG": "Thai Airways",
+    "AI": "Air India",
+    "ET": "Ethiopian Airlines",
+    "MS": "Egyptair",
+    "AT": "Royal Air Maroc",
+    "RJ": "Royal Jordanian",
+    "JU": "Air Serbia",
+    "OU": "Croatia Airlines",
+    "JP": "Adria Airways",
+    "W6": "Wizz Air",
+    "FR": "Ryanair",
+    "U2": "easyJet",
+    "VY": "Vueling",
+    "PC": "Pegasus Airlines",
+    "A3": "Aegean Airlines",
+    "FZ": "flydubai",
+    "WY": "Oman Air",
+    "GF": "Gulf Air",
+    "ME": "Middle East Airlines",
+}
+
+
+AIRLINE_DATABASE = load_airline_database()
+
+
+def airline_name(code):
+    """Naše ime → ime iz spletne baze → sama koda kot varnostna rezerva."""
+    code = (code or "").strip().upper()
+    if code in AIRLINE_NAMES:
+        return AIRLINE_NAMES[code]
+    return AIRLINE_DATABASE.get(code) or code
 
 
 def parse_date(token, year):
-    match = re.fullmatch(
-        r"(\d{1,2})([A-Z]{3})",
-        (token or "").upper().strip(),
-    )
+    """Prebere datum v obliki 24SEP, 7OCT itd."""
+    token = token.upper().strip()
+    match = re.fullmatch(r"(\d{1,2})([A-Z]{3})", token)
 
     if not match:
         return None
+
+    day = int(match.group(1))
+    month_text = match.group(2)
 
     months = {
         "JAN": 1, "FEB": 2, "MAR": 3, "APR": 4,
@@ -225,13 +242,13 @@ def parse_date(token, year):
         "SEP": 9, "OCT": 10, "NOV": 11, "DEC": 12,
     }
 
-    month = months.get(match.group(2))
+    month = months.get(month_text)
 
     if not month:
         return None
 
     try:
-        return date(year, month, int(match.group(1)))
+        return date(year, month, day)
     except ValueError:
         return None
 
@@ -258,6 +275,7 @@ def time_difference_minutes(
     end_time,
     end_tz,
 ):
+    """Izračuna trajanje med lokalnima časoma ob upoštevanju časovnih pasov."""
     try:
         start_dt = datetime.strptime(
             f"{start_date.isoformat()} {start_time}",
@@ -270,125 +288,88 @@ def time_difference_minutes(
         ).replace(tzinfo=ZoneInfo(end_tz))
 
         return int((end_dt - start_dt).total_seconds() // 60)
-    except Exception:
+
+    except (ValueError, KeyError, Exception):
         return None
 
 
 # ---------------------------------------------------------
-# PARSANJE AMADEUSOVIH ZAPISOV
+# PARSANJE AMADEUS SEGMENTOV
 # ---------------------------------------------------------
-
-def parse_amadeus_line(line):
-    """Razčleni Amadeusove letalske in železniške segmente."""
-    line = (line or "").strip()
-    if not line:
-        return None
-
-    # Odstranimo številko segmenta, npr. "1   LH1257" ali "2BT*LX1165".
-    line = re.sub(r"^\d+\s*", "", line)
-
-    # Odstranimo morebitno oznako operativnega prevoznika:
-    # OU:LH5989, BT*LX1165, L*LX1512; nato še samostojno začetno zvezdico.
-    line = re.sub(r"^[A-Z0-9]{1,2}[:*]\s*", "", line, flags=re.IGNORECASE)
-    line = re.sub(r"^\*\s*", "", line)
-
-    # Oblika "VY IB5380 ...": IB5380 je dejanska številka leta.
-    line = re.sub(
-        r"^[A-Z0-9]{2}\s+(?=[A-Z]{2}\s*\d)",
-        "",
-        line,
-        flags=re.IGNORECASE,
-    )
-
-    date_match = re.search(
-        r"\b(?P<date>\d{1,2}[A-Z]{3})\b",
-        line,
-        re.IGNORECASE,
-    )
-    if not date_match:
-        return None
-
-    date_token = date_match.group("date").upper()
-    prefix = line[:date_match.start()].strip()
-    remainder = line[date_match.end():].strip()
-
-    flight_matches = list(re.finditer(
-        r"(?P<flight>[A-Z0-9]{2}\s*[A-Z0-9]{1,4})\s+"
-        r"(?P<class>[A-Z])(?=\s|$)",
-        prefix,
-        re.IGNORECASE,
-    ))
-    if not flight_matches:
-        return None
-
-    flight = re.sub(r"\s+", "", flight_matches[-1].group("flight")).upper()
-
-    # Čase iščemo šele za datumom, da terminalov ne zamenjamo za čase.
-    times = list(re.finditer(r"(?<!\d)(\d{4})(?!\d)", remainder))
-    if len(times) < 2:
-        return None
-
-    route_text = remainder[:times[0].start()].strip()
-
-    # Letališča so navadno 3-črkovne kode, železniške postaje pa so lahko
-    # daljše (npr. FRATN). Terminali in drugi podatki se ne ujemajo s tem vzorcem.
-    airport_codes = re.findall(
-        r"(?<![A-Z])([A-Z]{3,5})(?![A-Z])",
-        route_text,
-        re.IGNORECASE,
-    )
-
-    if len(airport_codes) >= 2:
-        origin, destination = airport_codes[0].upper(), airport_codes[1].upper()
-    else:
-        # Kompaktne relacije, npr. LJUAMS ali GGZVIE, brez presledka.
-        compact = re.search(r"(?<![A-Z])([A-Z]{6,8})(?![A-Z])", route_text, re.IGNORECASE)
-        if not compact:
-            return None
-        route = compact.group(1).upper()
-        if len(route) == 6:
-            origin, destination = route[:3], route[3:]
-        elif len(route) == 8 and route[:5] in RAIL_STATIONS:
-            origin, destination = route[:5], route[5:]
-        elif len(route) == 8 and route[3:] in RAIL_STATIONS:
-            origin, destination = route[:3], route[3:]
-        else:
-            return None
-
-    is_train = bool(
-        re.search(r"\bTRN\b", line, re.IGNORECASE)
-        or origin in RAIL_STATIONS
-        or destination in RAIL_STATIONS
-    )
-
-    return {
-        "flight": flight,
-        "date_token": date_token,
-        "origin": origin,
-        "destination": destination,
-        "departure_time": times[0].group(1),
-        "arrival_time": times[1].group(1),
-        "is_train": is_train,
-    }
-
 
 def parse_segments(raw):
+    """
+    Podpira običajne oblike Amadeus segmentov, npr.:
+
+    2  KL1988 L 24SEP 4 LJUAMS HK1          0600 0755   *1A/E*
+    3  KL 611 N 24SEP 4 AMSORD HK1       5  1245 1415   *1A/E*
+    2  AZ1358 Y 31OCT 6 TRSFCO HK1 1115 1225
+    2  LH 123 C 24SEP 4 LJU FRA HK1 0600 0715
+    """
+
     raw_lines = [
         line.strip()
         for line in raw.splitlines()
         if line.strip()
     ]
 
+    parsed = []
+
+    # Namesto strogega preverjanja celotne vrstice najprej
+    # prepoznamo osnovne podatke segmenta. Za časi lahko
+    # sledijo še dodatne oznake, ki jih ignoriramo.
+    pattern = re.compile(
+        r"^\s*\d+\s+"
+        r"(?P<airline>[A-Z0-9]{2})\s*"
+        r"(?P<flight>[A-Z0-9]{1,4})\s+"
+        r"(?P<class>[A-Z])\s+"
+        r"(?P<date>\d{1,2}[A-Z]{3})\s+"
+        r"(?:(?P<dow>\d)\s+)?"
+        r"(?P<route>[A-Z]{3}\s*[A-Z]{3})\s+"
+        r"(?P<status>[A-Z]{2}\d?)\b"
+        r"(?P<rest>.*)$",
+        re.IGNORECASE,
+    )
+
     matched_lines = []
 
     for line in raw_lines:
-        item = parse_amadeus_line(line)
-        if item:
-            matched_lines.append(item)
+        match = pattern.search(line)
+
+        if not match:
+            continue
+
+        # Po statusu rezervacije poiščemo prva dva štirimestna
+        # zapisa časa, ne glede na dodatne številke ali oznake.
+        times = re.findall(
+            r"(?<!\d)(\d{4})(?!\d)",
+            match.group("rest"),
+        )
+
+        if len(times) < 2:
+            continue
+
+        route = re.sub(r"\s+", "", match.group("route")).upper()
+
+        if len(route) != 6:
+            continue
+
+        matched_lines.append({
+            "airline": match.group("airline").upper(),
+            "airline_name": airline_name(match.group("airline")),
+            "flight_number": match.group("flight").upper(),
+            "date_token": match.group("date").upper(),
+            "origin": route[:3],
+            "destination": route[3:],
+            "departure_time": times[0],
+            "arrival_time": times[1],
+        })
 
     if not matched_lines:
         return []
 
+    # Samodejna ocena leta:
+    # če je prvi datum že mimo, predpostavimo naslednje leto.
     today = date.today()
     current_year = today.year
 
@@ -397,30 +378,24 @@ def parse_segments(raw):
         current_year,
     )
 
-    base_year = (
-        current_year + 1
-        if first_date and first_date < today
-        else current_year
-    )
+    if first_date and first_date < today:
+        base_year = current_year + 1
+    else:
+        base_year = current_year
 
     previous_date = None
-    parsed = []
 
     for item in matched_lines:
-        flight_date = parse_date(
-            item["date_token"],
-            base_year,
-        )
+        flight_date = parse_date(item["date_token"], base_year)
 
         if not flight_date:
             continue
 
+        # Če se datum v zaporedju premakne nazaj, gre praviloma
+        # za prehod v naslednje koledarsko leto.
         if previous_date and flight_date < previous_date:
             base_year += 1
-            flight_date = parse_date(
-                item["date_token"],
-                base_year,
-            )
+            flight_date = parse_date(item["date_token"], base_year)
 
         if not flight_date:
             continue
@@ -447,11 +422,11 @@ def parse_segments(raw):
             destination_tz,
         )
 
-        # Če prihod po izračunu nastopi pred odhodom, preverimo naslednji dan.
+        # Če je trajanje negativno, preverimo prihod naslednji dan.
         if duration is not None and duration < 0:
             next_day = flight_date + timedelta(days=1)
 
-            next_duration = time_difference_minutes(
+            next_day_duration = time_difference_minutes(
                 flight_date,
                 departure_time,
                 origin_tz,
@@ -460,26 +435,30 @@ def parse_segments(raw):
                 destination_tz,
             )
 
-            if next_duration is not None and next_duration >= 0:
+            if next_day_duration is not None and next_day_duration >= 0:
                 arrival_date = next_day
-                duration = next_duration
+                duration = next_day_duration
 
         parsed.append({
             "date": flight_date,
-            "flight": item["flight"],
-            "airline_name": airline_name(item["flight"]),
-            "is_train": item.get("is_train", False),
+            "flight": (
+                f"{item['airline_name']}{item['flight_number']}"
+            ),
             "origin": origin,
             "destination": destination,
             "origin_city": origin_city,
             "destination_city": destination_city,
-            "departure": departure_time[:2] + ":" + departure_time[2:],
-            "arrival": arrival_time[:2] + ":" + arrival_time[2:],
+            "departure": (
+                departure_time[:2] + ":" + departure_time[2:]
+            ),
+            "arrival": (
+                arrival_time[:2] + ":" + arrival_time[2:]
+            ),
             "duration_minutes": duration,
             "arrival_date": arrival_date,
         })
 
-    # Izračun prestopov med zaporednimi leti.
+    # Izračun prestopov med zaporednimi segmenti.
     for i, segment in enumerate(parsed):
         segment["layover_minutes"] = None
 
@@ -488,11 +467,12 @@ def parse_segments(raw):
 
         next_segment = parsed[i + 1]
 
-        if connection_point(segment["destination"]) != connection_point(next_segment["origin"]):
+        # Prestop izračunamo le, kadar naslednji let odleti
+        # z letališča, na katerem se prejšnji konča.
+        if segment["destination"] != next_segment["origin"]:
             continue
 
-        # Pri letališču/železniški postaji uporabimo časovni pas istega kraja.
-        _, timezone_name = airport_info(connection_point(segment["destination"]))
+        _, timezone_name = airport_info(segment["destination"])
 
         try:
             arrival_dt = datetime.strptime(
@@ -507,26 +487,15 @@ def parse_segments(raw):
                 "%Y-%m-%d %H:%M",
             ).replace(tzinfo=ZoneInfo(timezone_name))
 
-            layover = int(
+            layover_minutes = int(
                 (next_departure_dt - arrival_dt).total_seconds() // 60
             )
 
-            if 0 <= layover <= 18 * 60:
-                segment["layover_minutes"] = layover
+            if 0 <= layover_minutes <= 18 * 60:
+                segment["layover_minutes"] = layover_minutes
 
         except Exception:
             segment["layover_minutes"] = None
-
-    # Odebeljena ločilna črta je samo med sklopi, ne pod zadnjo vrstico.
-    # Sklop se nadaljuje samo, če naslednji let odleti z istega letališča
-    # in ima veljaven prestop (0–18 ur). Sama enaka koda letališča ni dovolj:
-    # večdnevni presledek, kot TLV 15. decembra -> TLV 18. decembra,
-    # pomeni nov sklop.
-    for i, segment in enumerate(parsed):
-        segment["end_of_connection"] = (
-            i < len(parsed) - 1
-            and segment["layover_minutes"] is None
-        )
 
     return parsed
 
@@ -548,11 +517,8 @@ def format_text(segments):
 
         duration = format_duration(segment["duration_minutes"])
 
-        train_label = " (vlak)" if segment.get("is_train") else ""
-
         lines.append(
-            f"{date_text} | {segment['airline_name']} "
-            f"{segment['flight']}{train_label} | {route} | "
+            f"{date_text} | {segment['flight']} | {route} | "
             f"{segment['departure']}–{segment['arrival']} | {duration}"
         )
 
@@ -565,10 +531,7 @@ def display_table(segments):
     for segment in segments:
         rows.append({
             "Datum": segment["date"].strftime("%d.%m.%Y"),
-            "Let": (
-                f"{segment['airline_name']} {segment['flight']}"
-                + (" (vlak)" if segment.get("is_train") else "")
-            ),
+            "Let": segment["flight"],
             "Relacija": (
                 f"{segment['origin_city']} ({segment['origin']}) – "
                 f"{segment['destination_city']} ({segment['destination']})"
@@ -577,55 +540,44 @@ def display_table(segments):
             "Prihod": segment["arrival"],
             "Trajanje leta": format_duration(segment["duration_minutes"]),
             "Čas prestopa": format_duration(segment["layover_minutes"]),
-            "_konec_povezave": segment["end_of_connection"],
         })
 
     return rows
 
 
 # ---------------------------------------------------------
-# HTML TABELA – MODRO-ZLATA RAZLIČICA + ROBOTO
+# HTML TABELE – ELEGANTNA MODRA RAZLIČICA B
 # ---------------------------------------------------------
 
 def render_copyable_table(rows):
     if not rows:
         return
 
-    headers = [
-        key for key in rows[0]
-        if not key.startswith("_")
-    ]
+    headers = list(rows[0].keys())
 
     table_style = (
         "border-collapse:collapse;"
         "width:auto;"
         "max-width:100%;"
-        "font-family:Roboto,Arial,Helvetica,sans-serif;"
+        "font-family:Arial,Helvetica,sans-serif;"
         "font-size:13px;"
-        "font-weight:400;"
         "color:#263445;"
     )
 
     th_style = (
-        "background-color:#004899;"
+        "background-color:#23476A;"
         "color:#FFFFFF;"
-        "font-family:Roboto,Arial,Helvetica,sans-serif;"
-        "font-size:13px;"
         "font-weight:700;"
         "text-align:left;"
-        "padding:9px 10px;"
-        "border:none;"
-        "border-bottom:4px solid #FBB900;"
+        "padding:7px 9px;"
+        "border:1px solid #D5DEE7;"
         "white-space:nowrap;"
     )
 
     td_base = (
-        "padding:8px 10px;"
-        "border:none;"
+        "padding:7px 9px;"
+        "border:1px solid #D5DEE7;"
         "vertical-align:top;"
-        "font-family:Roboto,Arial,Helvetica,sans-serif;"
-        "font-size:13px;"
-        "font-weight:400;"
     )
 
     nowrap_columns = {
@@ -649,12 +601,7 @@ def render_copyable_table(rows):
     html_rows.append("</tr></thead><tbody>")
 
     for row_index, row in enumerate(rows):
-        background = (
-            "#FFF9E8"
-            if row_index % 2
-            else "#FFFFFF"
-        )
-
+        background = "#F0F6FB" if row_index % 2 else "#FFFFFF"
         html_rows.append("<tr>")
 
         for header in headers:
@@ -674,10 +621,6 @@ def render_copyable_table(rows):
                     "max-width:280px;"
                 )
 
-            # Rumena črta je samo med sklopi, ne pod zadnjo vrstico.
-            if row.get("_konec_povezave", False):
-                cell_style += "border-bottom:1px solid #FBB900;"
-
             html_rows.append(
                 f'<td style="{cell_style}">{value}</td>'
             )
@@ -685,9 +628,10 @@ def render_copyable_table(rows):
         html_rows.append("</tr>")
 
     html_rows.append("</tbody></table>")
+
     table_html = "".join(html_rows)
 
-    # Kopiranje v HTML ali navadno besedilo.
+    # Navadno besedilo kot rezervna možnost kopiranja.
     tsv_lines = ["\t".join(headers)]
 
     for row in rows:
@@ -697,37 +641,32 @@ def render_copyable_table(rows):
 
     tsv_text = "\n".join(tsv_lines)
 
+    # JSON varno prenese vsebino v JavaScript, tudi narekovaje
+    # in posebne znake v imenih mest.
     safe_html = json.dumps(table_html, ensure_ascii=False)
     safe_tsv = json.dumps(tsv_text, ensure_ascii=False)
 
     components.html(
         f"""
-        <div style="font-family:Roboto,Arial,Helvetica,sans-serif;">
-          <style>
-            @import url(
-              'https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&display=swap'
-            );
-          </style>
+        <div style="font-family:Arial,Helvetica,sans-serif;">
+          <button id="copyTable"
+            style="
+              background:#23476A;
+              color:#FFFFFF;
+              border:0;
+              border-radius:5px;
+              padding:8px 13px;
+              font-size:13px;
+              font-weight:600;
+              cursor:pointer;
+              margin:0 0 10px 0;
+            ">
+            📋 Kopiraj tabelo
+          </button>
 
-          <button id="copyTable" style="
-            background:#004899;
-            color:#FBB900;
-            border:2px solid #FBB900;
-            border-radius:5px;
-            padding:8px 13px;
-            font-family:Roboto,Arial,Helvetica,sans-serif;
-            font-size:13px;
-            font-weight:700;
-            cursor:pointer;
-            margin:0 0 10px 0;
-          ">📋 Kopiraj tabelo</button>
-
-          <span id="copyStatus" style="
-            font-family:Roboto,Arial,Helvetica,sans-serif;
-            font-size:12px;
-            color:#526579;
-            margin-left:8px;
-          "></span>
+          <span id="copyStatus"
+            style="font-size:12px;color:#526579;margin-left:8px;">
+          </span>
 
           <div style="overflow-x:auto;">
             {table_html}
@@ -758,19 +697,16 @@ def render_copyable_table(rows):
 
                   await navigator.clipboard.write([item]);
                   status.textContent = "Tabela je kopirana.";
-
                 }} else if (
                   navigator.clipboard &&
                   navigator.clipboard.writeText
                 ) {{
                   await navigator.clipboard.writeText(plainText);
                   status.textContent = "Kopirano kot besedilo.";
-
                 }} else {{
                   status.textContent =
                     "Kopiranje ni podprto. Označi tabelo in jo kopiraj.";
                 }}
-
               }} catch (err) {{
                 status.textContent =
                   "Kopiranje ni uspelo. Poskusi ponovno ali kopiraj tabelo ročno.";
@@ -793,8 +729,8 @@ raw_input = st.text_area(
     height=220,
     placeholder=(
         "Primer:\n"
-        "2 KL1988 L 24SEP 4 LJUAMS HK1 0600 0755 *1A/E*\n"
-        "3 KL 611 N 24SEP 4 AMSORD HK1 5 1245 1415 *1A/E*"
+        "2  KL1988 L 24SEP 4 LJUAMS HK1          0600 0755   *1A/E*\n"
+        "3  KL 611 N 24SEP 4 AMSORD HK1       5  1245 1415   *1A/E*"
     ),
 )
 
@@ -819,22 +755,9 @@ if st.session_state.get("segments"):
     segments = st.session_state["segments"]
     rows = display_table(segments)
 
-    st.subheader("Tabela za Loop ali e-pošto")
-
-    st.caption(
-        "Klikni »Kopiraj tabelo« in jo prilepi v Loop. "
-        "Rumena črta pod glavo označuje naslove, tanka rumena črta med "
-        "sklopi pa ločuje nepovezane segmente. Pod zadnjo vrstico je ni. "
-        "Če se oblikovanje ne prenese, je to lahko omejitev "
-        "brskalnika ali ciljnega programa."
-    )
-
-    render_copyable_table(rows)
-
     st.subheader("Besedilni pregled")
 
     text_output = format_text(segments)
-
     st.code(text_output, language=None)
 
     st.download_button(
@@ -843,3 +766,12 @@ if st.session_state.get("segments"):
         file_name="potovalni_nacrt.txt",
         mime="text/plain",
     )
+
+    st.subheader("Tabela za Loop ali e-pošto")
+    st.caption(
+        "Klikni »Kopiraj tabelo« in jo prilepi v Loop. "
+        "Če se oblikovanje ne prenese, je to lahko omejitev "
+        "brskalnika ali ciljnega programa."
+    )
+
+    render_copyable_table(rows)

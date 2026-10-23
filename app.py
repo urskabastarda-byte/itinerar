@@ -460,7 +460,7 @@ def parse_segments(raw):
         parsed.append({
             "date": flight_date,
             "flight": (
-                f"{item['airline_name']}{item['flight_number']}"
+                f"{item['airline_name']} {item['airline']}{item['flight_number']}"
             ),
             "origin": origin,
             "destination": destination,

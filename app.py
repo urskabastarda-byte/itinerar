@@ -1,12 +1,9 @@
 
 import re
-import csv
-import io
 import html
 import json
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from urllib.request import urlopen
 
 import streamlit as st
 import airportsdata
@@ -127,102 +124,6 @@ def airport_info(code):
         timezone_name = "UTC"
 
     return city, timezone_name
-
-
-@st.cache_data(ttl=86400, show_spinner=False)
-def load_airline_database():
-    """
-    Naloži javni seznam letalskih družb z OpenFlights.
-    Če internetni vir ni dosegljiv, aplikacija še vedno deluje z našim seznamom.
-    """
-    url = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airlines.dat"
-
-    try:
-        with urlopen(url, timeout=5) as response:
-            content = response.read().decode("utf-8", errors="replace")
-
-        airlines = {}
-        reader = csv.reader(io.StringIO(content))
-        for row in reader:
-            # OpenFlights format: ID, Name, Alias, IATA, ICAO, Callsign, Country, Active
-            if len(row) < 8:
-                continue
-
-            code = row[3].strip().upper()
-            name = row[1].strip()
-
-            if code and code != r"\\N" and name and name != r"\\N":
-                # Prva najdena veljavna vrednost za kodo ostane v slovarju.
-                airlines.setdefault(code, name)
-
-        return airlines
-    except Exception:
-        return {}
-
-
-# Naša imena imajo vedno prednost pred imeni iz spletne baze.
-# Seznam lahko kadarkoli razširimo z dodatnimi kodami.
-AIRLINE_NAMES = {
-    "KL": "KLM",
-    "AF": "Air France",
-    "LH": "Lufthansa",
-    "AZ": "ITA Airways",
-    "BA": "British Airways",
-    "IB": "Iberia",
-    "LX": "SWISS",
-    "OS": "Austrian Airlines",
-    "SN": "Brussels Airlines",
-    "TK": "Turkish Airlines",
-    "QR": "Qatar Airways",
-    "EK": "Emirates",
-    "EY": "Etihad Airways",
-    "LO": "LOT Polish Airlines",
-    "SK": "SAS",
-    "AY": "Finnair",
-    "TP": "TAP Air Portugal",
-    "UA": "United Airlines",
-    "AA": "American Airlines",
-    "DL": "Delta Air Lines",
-    "AC": "Air Canada",
-    "QF": "Qantas",
-    "SQ": "Singapore Airlines",
-    "CX": "Cathay Pacific",
-    "NH": "ANA",
-    "JL": "Japan Airlines",
-    "CA": "Air China",
-    "MU": "China Eastern Airlines",
-    "CZ": "China Southern Airlines",
-    "TG": "Thai Airways",
-    "AI": "Air India",
-    "ET": "Ethiopian Airlines",
-    "MS": "Egyptair",
-    "AT": "Royal Air Maroc",
-    "RJ": "Royal Jordanian",
-    "JU": "Air Serbia",
-    "OU": "Croatia Airlines",
-    "JP": "Adria Airways",
-    "W6": "Wizz Air",
-    "FR": "Ryanair",
-    "U2": "easyJet",
-    "VY": "Vueling",
-    "PC": "Pegasus Airlines",
-    "A3": "Aegean Airlines",
-    "FZ": "flydubai",
-    "WY": "Oman Air",
-    "GF": "Gulf Air",
-    "ME": "Middle East Airlines",
-}
-
-
-AIRLINE_DATABASE = load_airline_database()
-
-
-def airline_name(code):
-    """Naše ime → ime iz spletne baze → sama koda kot varnostna rezerva."""
-    code = (code or "").strip().upper()
-    if code in AIRLINE_NAMES:
-        return AIRLINE_NAMES[code]
-    return AIRLINE_DATABASE.get(code) or code
 
 
 def parse_date(token, year):
@@ -356,7 +257,6 @@ def parse_segments(raw):
 
         matched_lines.append({
             "airline": match.group("airline").upper(),
-            "airline_name": airline_name(match.group("airline")),
             "flight_number": match.group("flight").upper(),
             "date_token": match.group("date").upper(),
             "origin": route[:3],
@@ -442,7 +342,7 @@ def parse_segments(raw):
         parsed.append({
             "date": flight_date,
             "flight": (
-                f"{item['airline_name']}{item['flight_number']}"
+                f"{item['airline']}{item['flight_number']}"
             ),
             "origin": origin,
             "destination": destination,

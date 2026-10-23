@@ -305,7 +305,7 @@ def parse_segments(raw):
     # Segmentna glava: številka segmenta je lahko prisotna ali odsotna;
     # številka leta je lahko zapisana kot AZ1358 ali AZ  60.
     header_pattern = re.compile(
-        r"^\s*(?:\d+\s+)?"
+        r"^\s*(?:\d+\s+)?\*?\s*"
         r"(?P<airline>[A-Z0-9]{2})\s*"
         r"(?P<flight>\d{1,4})\s+"
         r"(?P<class>[A-Z])\s+"

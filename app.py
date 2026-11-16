@@ -214,6 +214,7 @@ AIRLINE_NAMES = {
     "WY": "Oman Air",
     "GF": "Gulf Air",
     "ME": "Middle East Airlines",
+    "W4": "Wizz Air",
 }
 
 

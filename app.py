@@ -372,6 +372,8 @@ def parse_segments(raw):
         # Status (npr. HK1) ni obvezen v vseh Amadeus prikazih.
         # Vzamemo prva dva časovna zapisa, ki se pojavita za relacijo.
         times = re.findall(r"(?<!\d)(\d{4})(?!\d)", rest)
+        if len(times) >= 3:
+            times = times[-2:]
         if len(times) < 2:
             continue
 

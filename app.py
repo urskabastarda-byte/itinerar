@@ -307,7 +307,7 @@ def parse_segments(raw):
     parsed = []
 
     header_pattern = re.compile(
-        r"^\s*(?:\d+\s*)?(?:VA:)?\s*\*?\s*"
+        r"^\s*(?:\d+\s*)?(?:(?:[A-Z0-9]{1,3})?:)?\s*\*?\s*"
         r"(?P<airline>[A-Z0-9]{2})\s*"
         r"(?P<flight>\d{1,4})\s+"
         r"(?P<class>[A-Z])\s+"

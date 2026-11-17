@@ -395,9 +395,9 @@ def parse_segments(raw):
             if len(times) < 2:
                 continue
 
-            departure_time = times[0][0]
-            arrival_time = times[1][0]
-            arrival_day_offset = int(times[1][1] or 0)
+            "departure_time": departure_time,
+            "arrival_time": arrival_time,
+            "arrival_day_offset": arrival_day_offset,
 
         matched_lines.append({
             "airline": header.group("airline").upper(),
@@ -406,8 +406,9 @@ def parse_segments(raw):
             "date_token": header.group("date").upper(),
             "origin": origin,
             "destination": destination,
-            "departure_time": times[0],
-            "arrival_time": times[1],
+            "departure_time": departure_time,
+            "arrival_time": arrival_time,
+            "arrival_day_offset": arrival_day_offset,
         })
 
     if not matched_lines:

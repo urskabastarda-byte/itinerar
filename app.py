@@ -306,8 +306,6 @@ def parse_segments(raw):
     raw_lines = [line.strip() for line in raw.splitlines() if line.strip()]
     parsed = []
 
-    # Segmentna glava: številka segmenta je lahko prisotna ali odsotna;
-    # številka leta je lahko zapisana kot AZ1358 ali AZ  60.
     header_pattern = re.compile(
         r"^\s*(?:\d+\s*)?(?:VA:)?\s*\*?\s*"
         r"(?P<airline>[A-Z0-9]{2})\s*"
@@ -319,11 +317,9 @@ def parse_segments(raw):
         re.IGNORECASE,
     )
 
-    # Letališči sta lahko zapisani skupaj (LJUAMS) ali ločeno (FCO MAD),
-    # za njima pa se lahko pojavijo številke terminalov (npr. FCO 1 MAD 2).
     spaced_route_pattern = re.compile(
-        r"^\s*(?P<origin>[A-Z]{3})\s+(?:(?:\d+|[A-Z])\s+)?"
-        r"(?P<destination>[A-Z]{3})(?:\s+(?:\d+|[A-Z]))?\s+(?P<rest>.*)$",
+        r"^\s*(?P<origin>[A-Z]{3})\s+(?:(?:\d|[A-Z])\s+)?"
+        r"(?P<destination>[A-Z]{3})(?:\s+(?:\d|[A-Z]))?\s+(?P<rest>.*)$",
         re.IGNORECASE,
     )
     compact_route_pattern = re.compile(
@@ -339,6 +335,7 @@ def parse_segments(raw):
 
         route_rest = header.group("route_rest")
         route_match = spaced_route_pattern.match(route_rest)
+
         if route_match:
             origin = route_match.group("origin").upper()
             destination = route_match.group("destination").upper()
@@ -349,12 +346,9 @@ def parse_segments(raw):
                 route = route_match.group("route").upper()
                 origin, destination = route[:3], route[3:]
                 rest = route_match.group("rest")
-                # Kompaktna relacija lahko vsebuje terminal za ciljnim letališčem.
                 rest = re.sub(r"^\s+\d+\b", "", rest, count=1)
             else:
-                # V nekaterih kopiranih prikazih je zadnji cilj izpuščen.
-                # Cilj dopolnimo samo, če gre očitno za povratni let:
-                # trenutni odhod = prejšnji cilj, cilj = prvi odhod.
+                # Podpora vrstic, kjer je cilj izpuščen pri povratnem letu.
                 one_airport = re.match(
                     r"^\s*(?P<origin>[A-Z]{3})\s+(?P<rest>.*)$",
                     route_rest,
@@ -370,138 +364,100 @@ def parse_segments(raw):
                     continue
                 destination = first_origin
 
-            # Preberemo dejanski odhod in prihod.
-            # Pri klasičnem Amadeus izpisu preskočimo tudi check-in uro.
-            checkin_match = re.search(
-                r"\bHK\d+\s+\d{4}\s+(?:\d+[A-Z]?\s+)?"
-                r"(?P<departure>\d{4})\s+"
-                r"(?P<arrival>\d{4})(?:\+(?P<day_offset>\d+))?",
+        # Klasični Amadeus izpis ima lahko HK1 in dodatno check-in uro.
+        checkin_match = re.search(
+            r"\bHK\d+\s+\d{4}\s+(?:\d+[A-Z]?\s+)?"
+            r"(?P<departure>\d{4})\s+"
+            r"(?P<arrival>\d{4})(?:\+(?P<day_offset>\d+))?",
+            rest,
+            re.IGNORECASE,
+        )
+
+        if checkin_match:
+            departure_time = checkin_match.group("departure")
+            arrival_time = checkin_match.group("arrival")
+            arrival_day_offset = int(checkin_match.group("day_offset") or 0)
+        else:
+            # FXD: prva dva časa sta odhod in prihod; morebitni
+            # dodatni podatek na koncu vrstice (npr. 2310) se ignorira.
+            times = re.findall(
+                r"(?<!\d)(\d{4})(?:\+(\d+))?(?!\d)",
                 rest,
-                re.IGNORECASE,
             )
+            if len(times) < 2:
+                continue
+            departure_time = times[0][0]
+            arrival_time = times[1][0]
+            arrival_day_offset = int(times[1][1] or 0)
 
-            if checkin_match:
-                departure_time = checkin_match.group("departure")
-                arrival_time = checkin_match.group("arrival")
-                arrival_day_offset = int(checkin_match.group("day_offset") or 0)
-            else:
-                # FXD: prva dva časa sta odhod in prihod.
-                # Morebitni dodatni podatek na koncu vrstice ignoriramo.
-                times = re.findall(
-                    r"(?<!\d)(\d{4})(?:\+(\d+))?(?!\d)",
-                    rest,
-                )
-
-                if len(times) < 2:
-                    continue
-
-                departure_time = times[0][0]
-                arrival_time = times[1][0]
-                arrival_day_offset = int(times[1][1] or 0)
-
-            matched_lines.append({
-                "airline": header.group("airline").upper(),
-                "airline_name": airline_name(header.group("airline")),
-                "flight_number": header.group("flight").upper(),
-                "date_token": header.group("date").upper(),
-                "origin": origin,
-                "destination": destination,
-                "departure_time": departure_time,
-                "arrival_time": arrival_time,
-                "arrival_day_offset": arrival_day_offset,
-            })
+        matched_lines.append({
+            "airline": header.group("airline").upper(),
+            "airline_name": airline_name(header.group("airline")),
+            "flight_number": header.group("flight").upper(),
+            "date_token": header.group("date").upper(),
+            "origin": origin,
+            "destination": destination,
+            "departure_time": departure_time,
+            "arrival_time": arrival_time,
+            "arrival_day_offset": arrival_day_offset,
+        })
 
     if not matched_lines:
         return []
 
-    # Samodejna ocena leta:
-    # če je prvi datum že mimo, predpostavimo naslednje leto.
     today = date.today()
     current_year = today.year
-
-    first_date = parse_date(
-        matched_lines[0]["date_token"],
-        current_year,
-    )
-
+    first_date = parse_date(matched_lines[0]["date_token"], current_year)
     if first_date and first_date < today:
         base_year = current_year + 1
     else:
         base_year = current_year
 
     previous_date = None
-
     for item in matched_lines:
         flight_date = parse_date(item["date_token"], base_year)
-
         if not flight_date:
             continue
 
-        # Če se datum v zaporedju premakne nazaj, gre praviloma
-        # za prehod v naslednje koledarsko leto.
         if previous_date and flight_date < previous_date:
             base_year += 1
             flight_date = parse_date(item["date_token"], base_year)
-
         if not flight_date:
             continue
-
         previous_date = flight_date
 
         origin = item["origin"]
         destination = item["destination"]
-
         origin_city, origin_tz = airport_info(origin)
         destination_city, destination_tz = airport_info(destination)
-
         departure_time = item["departure_time"]
         arrival_time = item["arrival_time"]
-
-        arrival_date = flight_date + timedelta(
-            days=item.get("arrival_day_offset", 0)
-        )
+        arrival_date = flight_date + timedelta(days=item.get("arrival_day_offset", 0))
 
         duration = time_difference_minutes(
-            flight_date,
-            departure_time,
-            origin_tz,
-            arrival_date,
-            arrival_time,
-            destination_tz,
+            flight_date, departure_time, origin_tz,
+            arrival_date, arrival_time, destination_tz,
         )
 
-        # Če je trajanje negativno, preverimo prihod naslednji dan.
-        if duration is not None and duration < 0:
+        if duration is not None and duration < 0 and item.get("arrival_day_offset", 0) == 0:
             next_day = flight_date + timedelta(days=1)
-
             next_day_duration = time_difference_minutes(
-                flight_date,
-                departure_time,
-                origin_tz,
-                next_day,
-                arrival_time,
-                destination_tz,
+                flight_date, departure_time, origin_tz,
+                next_day, arrival_time, destination_tz,
             )
-
             if next_day_duration is not None and next_day_duration >= 0:
                 arrival_date = next_day
                 duration = next_day_duration
 
         parsed.append({
             "date": flight_date,
-            "flight": (
-                f"{item['airline_name']} {item['airline']}{item['flight_number']}"
-            ),
+            "flight": f"{item['airline_name']} {item['airline']}{item['flight_number']}",
             "origin": origin,
             "destination": destination,
             "origin_city": origin_city,
             "destination_city": destination_city,
-            "departure": (
-                departure_time[:2] + ":" + departure_time[2:]
-            ),
-            "arrival": (
-                arrival_time[:2] + ":" + arrival_time[2:]
-            ),
+            "departure": departure_time[:2] + ":" + departure_time[2:],
+            "arrival": arrival_time[:2] + ":" + arrival_time[2:],
             "duration_minutes": duration,
             "arrival_date": arrival_date,
         })
@@ -509,39 +465,25 @@ def parse_segments(raw):
     # Izračun prestopov med zaporednimi segmenti.
     for i, segment in enumerate(parsed):
         segment["layover_minutes"] = None
-
         if i >= len(parsed) - 1:
             continue
-
         next_segment = parsed[i + 1]
-
-        # Prestop izračunamo le, kadar naslednji let odleti
-        # z letališča, na katerem se prejšnji konča.
         if segment["destination"] != next_segment["origin"]:
             continue
 
         _, timezone_name = airport_info(segment["destination"])
-
         try:
             arrival_dt = datetime.strptime(
-                f"{segment['arrival_date'].isoformat()} "
-                f"{segment['arrival']}",
+                f"{segment['arrival_date'].isoformat()} {segment['arrival']}",
                 "%Y-%m-%d %H:%M",
             ).replace(tzinfo=ZoneInfo(timezone_name))
-
             next_departure_dt = datetime.strptime(
-                f"{next_segment['date'].isoformat()} "
-                f"{next_segment['departure']}",
+                f"{next_segment['date'].isoformat()} {next_segment['departure']}",
                 "%Y-%m-%d %H:%M",
             ).replace(tzinfo=ZoneInfo(timezone_name))
-
-            layover_minutes = int(
-                (next_departure_dt - arrival_dt).total_seconds() // 60
-            )
-
+            layover_minutes = int((next_departure_dt - arrival_dt).total_seconds() // 60)
             if 0 <= layover_minutes <= 18 * 60:
                 segment["layover_minutes"] = layover_minutes
-
         except Exception:
             segment["layover_minutes"] = None
 

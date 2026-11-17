@@ -395,9 +395,9 @@ def parse_segments(raw):
             if len(times) < 2:
             continue
 
-                "departure_time": departure_time,
-                "arrival_time": arrival_time,
-                "arrival_day_offset": arrival_day_offset,
+             "departure_time": departure_time,
+             "arrival_time": arrival_time,
+             "arrival_day_offset": arrival_day_offset,
 
         matched_lines.append({
             "airline": header.group("airline").upper(),

@@ -393,7 +393,7 @@ def parse_segments(raw):
                  )
 
             if len(times) < 2:
-            continue
+                continue
 
              "departure_time": departure_time,
              "arrival_time": arrival_time,

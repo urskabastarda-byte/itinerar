@@ -372,44 +372,44 @@ def parse_segments(raw):
 
             # Preberemo dejanski odhod in prihod.
             # Pri klasičnem Amadeus izpisu preskočimo tudi check-in uro.
-                checkin_match = re.search(
-                    r"\bHK\d+\s+\d{4}\s+(?:\d+[A-Z]?\s+)?"
-                    r"(?P<departure>\d{4})\s+"
-                    r"(?P<arrival>\d{4})(?:\+(?P<day_offset>\d+))?",
-                    rest,
-                    re.IGNORECASE,
+            checkin_match = re.search(
+                r"\bHK\d+\s+\d{4}\s+(?:\d+[A-Z]?\s+)?"
+                r"(?P<departure>\d{4})\s+"
+                r"(?P<arrival>\d{4})(?:\+(?P<day_offset>\d+))?",
+                rest,
+                re.IGNORECASE,
             )
 
             if checkin_match:
-                    departure_time = checkin_match.group("departure")
-                    arrival_time = checkin_match.group("arrival")
-                    arrival_day_offset = int(checkin_match.group("day_offset") or 0)
+                departure_time = checkin_match.group("departure")
+                arrival_time = checkin_match.group("arrival")
+                arrival_day_offset = int(checkin_match.group("day_offset") or 0)
             else:
                 # FXD: prva dva časa sta odhod in prihod.
                 # Morebitni dodatni podatek na koncu vrstice ignoriramo.
-               times = re.findall(
+                times = re.findall(
                     r"(?<!\d)(\d{4})(?:\+(\d+))?(?!\d)",
                     rest,
-                 )
+                )
 
-            if len(times) < 2:
-                continue
+                if len(times) < 2:
+                    continue
 
-            "departure_time": departure_time,
-            "arrival_time": arrival_time,
-            "arrival_day_offset": arrival_day_offset,
+                departure_time = times[0][0]
+                arrival_time = times[1][0]
+                arrival_day_offset = int(times[1][1] or 0)
 
-        matched_lines.append({
-            "airline": header.group("airline").upper(),
-            "airline_name": airline_name(header.group("airline")),
-            "flight_number": header.group("flight").upper(),
-            "date_token": header.group("date").upper(),
-            "origin": origin,
-            "destination": destination,
-            "departure_time": departure_time,
-            "arrival_time": arrival_time,
-            "arrival_day_offset": arrival_day_offset,
-        })
+            matched_lines.append({
+                "airline": header.group("airline").upper(),
+                "airline_name": airline_name(header.group("airline")),
+                "flight_number": header.group("flight").upper(),
+                "date_token": header.group("date").upper(),
+                "origin": origin,
+                "destination": destination,
+                "departure_time": departure_time,
+                "arrival_time": arrival_time,
+                "arrival_day_offset": arrival_day_offset,
+            })
 
     if not matched_lines:
         return []

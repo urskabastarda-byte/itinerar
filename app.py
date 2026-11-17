@@ -1,4 +1,4 @@
-
+    
 import re
 import csv
 import io
@@ -309,7 +309,7 @@ def parse_segments(raw):
     # Segmentna glava: številka segmenta je lahko prisotna ali odsotna;
     # številka leta je lahko zapisana kot AZ1358 ali AZ  60.
     header_pattern = re.compile(
-        r"^\s*(?:\d+\s+)?\*?\s*"
+        r"^\s*(?:\d+\s*)?(?:VA:)?\s*\*?\s*"
         r"(?P<airline>[A-Z0-9]{2})\s*"
         r"(?P<flight>\d{1,4})\s+"
         r"(?P<class>[A-Z])\s+"
@@ -322,8 +322,8 @@ def parse_segments(raw):
     # Letališči sta lahko zapisani skupaj (LJUAMS) ali ločeno (FCO MAD),
     # za njima pa se lahko pojavijo številke terminalov (npr. FCO 1 MAD 2).
     spaced_route_pattern = re.compile(
-        r"^\s*(?P<origin>[A-Z]{3})\s+(?:\d+\s+)?"
-        r"(?P<destination>[A-Z]{3})(?:\s+\d+)?\s+(?P<rest>.*)$",
+        r"^\s*(?P<origin>[A-Z]{3})\s+(?:(?:\d+|[A-Z])\s+)?"
+        r"(?P<destination>[A-Z]{3})(?:\s+(?:\d+|[A-Z]))?\s+(?P<rest>.*)$",
         re.IGNORECASE,
     )
     compact_route_pattern = re.compile(
@@ -370,13 +370,34 @@ def parse_segments(raw):
                     continue
                 destination = first_origin
 
-        # Status (npr. HK1) ni obvezen v vseh Amadeus prikazih.
-        # Vzamemo prva dva časovna zapisa, ki se pojavita za relacijo.
-        times = re.findall(r"(?<!\d)(\d{4})(?!\d)", rest)
-        if len(times) >= 3:
-            times = times[-2:]
-        if len(times) < 2:
+            # Preberemo dejanski odhod in prihod.
+            # Pri klasičnem Amadeus izpisu preskočimo tudi check-in uro.
+                checkin_match = re.search(
+                    r"\bHK\d+\s+\d{4}\s+(?:\d+[A-Z]?\s+)?"
+                    r"(?P<departure>\d{4})\s+"
+                    r"(?P<arrival>\d{4})(?:\+(?P<day_offset>\d+))?",
+                    rest,
+                    re.IGNORECASE,
+            )
+
+            if checkin_match:
+                    departure_time = checkin_match.group("departure")
+                    arrival_time = checkin_match.group("arrival")
+                    arrival_day_offset = int(checkin_match.group("day_offset") or 0)
+            else:
+                # FXD: prva dva časa sta odhod in prihod.
+                # Morebitni dodatni podatek na koncu vrstice ignoriramo.
+               times = re.findall(
+                    r"(?<!\d)(\d{4})(?:\+(\d+))?(?!\d)",
+                    rest,
+                 )
+
+            if len(times) < 2:
             continue
+
+                "departure_time": departure_time,
+                "arrival_time": arrival_time,
+                "arrival_day_offset": arrival_day_offset,
 
         matched_lines.append({
             "airline": header.group("airline").upper(),
@@ -435,7 +456,9 @@ def parse_segments(raw):
         departure_time = item["departure_time"]
         arrival_time = item["arrival_time"]
 
-        arrival_date = flight_date
+        arrival_date = flight_date + timedelta(
+            days=item.get("arrival_day_offset", 0)
+        )
 
         duration = time_difference_minutes(
             flight_date,

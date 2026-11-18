@@ -86,6 +86,8 @@ AIRPORTS = {
     "BSL": ("Basel Mulhouse", "Europe/Zurich"),
     "GGZ": ("Železniška postaja Gradec", "Europe/Graz"),
     "ZWS": ("Zürich železniška postaja", "Europe/Zurich"),
+    "QKU": ("Železniška postaja Köln", "Europe/Berlin"),
+    "QKL": ("Železniška postaja Köln Deutz", "Europe/Berlin"),
 }
 
 

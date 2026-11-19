@@ -86,8 +86,8 @@ AIRPORTS = {
     "BSL": ("Basel Mulhouse", "Europe/Zurich"),
     "GGZ": ("Železniška postaja Gradec", "Europe/Graz"),
     "ZWS": ("Zürich železniška postaja", "Europe/Zurich"),
-    "QKU": ("Železniška postaja Köln", "Europe/Berlin"),
-    "QKL": ("Železniška postaja Köln Deutz", "Europe/Berlin"),
+    "QKU": ("Köln", "Europe/Berlin"),
+    "QKL": ("Köln", "Europe/Berlin"),
     "XTI": ("Železniška postaja Madrid Chamartin", "Europe/Madrid"),
     "YJC": ("Železniška postaja A Coruña", "Europe/Madrid"),
 }
@@ -560,7 +560,8 @@ def render_copyable_table(rows):
 
     th_style = (
         "background-color:#004899;"
-        "color:#FFFFFF;"
+        "color:#FFFFFF !important;"
+        "-webkit-text-fill-color:#FFFFFF;"
         "font-weight:700;"
         "text-align:left;"
         "padding:7px 9px;"
@@ -590,7 +591,8 @@ def render_copyable_table(rows):
 
     for header in headers:
         html_rows.append(
-            f'<th style="{th_style}">{html.escape(header)}</th>'
+            f'<th style="{th_style}"><span style="color:#FFFFFF !important;'
+            f'-webkit-text-fill-color:#FFFFFF;">{html.escape(header)}</span></th>'
         )
 
     html_rows.append("</tr></thead><tbody>")

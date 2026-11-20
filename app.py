@@ -90,6 +90,7 @@ AIRPORTS = {
     "QKL": ("Köln", "Europe/Berlin"),
     "XTI": ("Železniška postaja Madrid Chamartin", "Europe/Madrid"),
     "YJC": ("Železniška postaja A Coruña", "Europe/Madrid"),
+    "ZMU": ("Železniška postaja München", "Europe/Berlin"),
 }
 
 
